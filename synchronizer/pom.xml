@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.migration</groupId>
-    <artifactId>dbSync</artifactId>
+    <artifactId>com.migration.synchronizer</artifactId>
     <version>1.0-SNAPSHOT</version>
     <dependencies>
         <dependency>
@@ -14,7 +14,7 @@
         </dependency>
     </dependencies>
     <build>
-        <defaultGoal>com.migration.dbSync</defaultGoal>
+        <defaultGoal>com.migration.synchronizer</defaultGoal>
         <directory>${basedir}/build</directory>
         <resources>
             <resource>
@@ -47,7 +47,6 @@
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
