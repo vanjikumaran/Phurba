@@ -1,0 +1,21 @@
+-- --------------------------------------------------
+-- TABLE IDN_OAUTH2_ACCESS_TOKEN
+-- --------------------------------------------------
+DROP TRIGGER IF EXISTS IDN_OAUTH2_ACCESS_TOKEN_SYNC_INSERT_TRIGR;
+DROP TRIGGER IF EXISTS IDN_OAUTH2_ACCESS_TOKEN_SYNC_UPDATE_TRIGR;
+
+-- --------------------------------------------------
+-- TABLE IDN_OAUTH2_ACCESS_TOKEN_SCOPE
+-- --------------------------------------------------
+DROP TRIGGER IF EXISTS IDN_OAUTH2_ACCESS_TOKEN_SCOPE_SYNC_INSERT_TRIGR;
+DROP TRIGGER IF EXISTS IDN_OAUTH2_ACCESS_TOKEN_SCOPE_SYNC_UPDATE_TRIGR;
+
+-- --------------------------------------------------
+-- TABLE IDN_OAUTH2_AUTHORIZATION_CODE
+-- --------------------------------------------------
+DROP TRIGGER IF EXISTS IDN_OAUTH2_AUTHORIZATION_CODE_SYNC_INSERT_TRIGR;
+DROP TRIGGER IF EXISTS IDN_OAUTH2_AUTHORIZATION_CODE_SYNC_UPDATE_TRIGR;
+
+
+
+
