@@ -1,15 +1,10 @@
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Map;
 import java.util.Scanner;
 
-public class Main {
+public class Runner {
 
     enum information_schema{
         COLUMN_NAME,COLUMN_TYPE;
@@ -28,7 +23,7 @@ public class Main {
     private String TargetDBPass;
 
     private static final FileRender fr = new FileRender();
-    private static final Main m = new Main();
+    private static final Runner m = new Runner();
 
     public static void main(String[] args) throws Exception {
 
