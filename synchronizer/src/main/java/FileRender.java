@@ -10,9 +10,9 @@ import java.util.ArrayList;
 
 public class FileRender {
 
-    private final String propertiseFile = System.getProperty("user.dir") + "/SyncTable.properties";
+    private final String propertiseFile = System.getProperty("user.dir") + "/synchronizer.properties";
     private final String resourcePropertiseFile = this.getClass().getClassLoader()
-            .getResource("sample/SyncTable.properties").getFile();
+            .getResource("sample/synchronizer.properties").getFile();
     protected ArrayList<String> syncTables = new ArrayList<String>();
     protected String sourceSchema = null;
     protected String targetSchema = null;
@@ -38,7 +38,7 @@ public class FileRender {
         try (BufferedReader br = new BufferedReader(new FileReader(propertiseFile))) {
 
             String sCurrentLine;
-            System.out.println("\nReading SyncTable.properties file ....\n");
+            System.out.println("\nReading synchronizer.properties file ....\n");
 
             while ((sCurrentLine = br.readLine()) != null) {
 
