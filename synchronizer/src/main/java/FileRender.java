@@ -1,7 +1,7 @@
-
-
-import javax.annotation.Resources;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
@@ -10,35 +10,29 @@ import java.util.ArrayList;
 
 public class FileRender {
 
+    private final String propertiseFile = System.getProperty("user.dir") + "/SyncTable.properties";
+    private final String resourcePropertiseFile = this.getClass().getClassLoader()
+            .getResource("sample/SyncTable.properties").getFile();
     protected ArrayList<String> syncTables = new ArrayList<String>();
-
     protected String sourceSchema = null;
     protected String targetSchema = null;
     protected String sourceDbHost = null;
     protected String targetDbHost = null;
-
-    private final  String propertiseFile = System.getProperty("user.dir")+ "/SyncTable.properties";
-    private final  String resourcePropertiseFile = this.getClass().getClassLoader().getResource("sample/SyncTable.properties").getFile();
-
 
     protected void ReadSyncTablePropertise() {
 
         String currentProperty = "empty";
 
 
-
-
         try {
             File file = new File(propertiseFile);
             if (!file.exists()) {
 
-                Files.move(Paths.get(resourcePropertiseFile),Paths.get(propertiseFile), StandardCopyOption.REPLACE_EXISTING);
+                Files.move(Paths.get(resourcePropertiseFile), Paths.get(propertiseFile), StandardCopyOption.REPLACE_EXISTING);
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-
 
 
         try (BufferedReader br = new BufferedReader(new FileReader(propertiseFile))) {
@@ -48,43 +42,37 @@ public class FileRender {
 
             while ((sCurrentLine = br.readLine()) != null) {
 
-                if (!sCurrentLine.startsWith("#") && !sCurrentLine.equals("")){
+                if (!sCurrentLine.startsWith("#") && !sCurrentLine.equals("")) {
 
 
-                    if (sCurrentLine.startsWith("@")){
+                    if (sCurrentLine.startsWith("@")) {
 
                         currentProperty = sCurrentLine.substring(2);
-                    }
-
-                    else if (currentProperty.contentEquals("SOURCE_DB_HOST")){
+                    } else if (currentProperty.contentEquals("SOURCE_DB_HOST")) {
 
                         sourceDbHost = sCurrentLine;
-                        System.out.println("SOURCE_DB_HOST : "+sourceDbHost);
+                        System.out.println("SOURCE_DB_HOST : " + sourceDbHost);
 
-                    }
-                    else if (currentProperty.contentEquals("SOURCE_DB_SCHEMA_NAME")){
+                    } else if (currentProperty.contentEquals("SOURCE_DB_NAME")) {
 
                         sourceSchema = sCurrentLine;
-                        System.out.println("SOURCE_DB_SCHEMA_NAME : "+sourceSchema);
+                        System.out.println("SOURCE_DB_NAME : " + sourceSchema);
 
-                    }
-                    else if (currentProperty.contentEquals("TARGET_DB_HOST")){
+                    } else if (currentProperty.contentEquals("TARGET_DB_HOST")) {
 
                         targetDbHost = sCurrentLine;
-                        System.out.println("TARGET_DB_HOST : "+targetDbHost);
+                        System.out.println("TARGET_DB_HOST : " + targetDbHost);
 
-                    }
-                    else if (currentProperty.contentEquals("TARGET_DB_SCHEMA_NAME")){
+                    } else if (currentProperty.contentEquals("TARGET_DB_NAME")) {
 
 
                         targetSchema = sCurrentLine;
-                        System.out.println("TARGET_DB_SCHEMA_NAME : "+targetSchema+"\n");
+                        System.out.println("TARGET_DB_NAME : " + targetSchema + "\n");
 
-                    }
-                    else if (currentProperty.contentEquals("TABLES_ENBALE_FOR_SYNC")){
+                    } else if (currentProperty.contentEquals("SYNC_ENABLED_TABLES")) {
 
-                        syncTables.add (sCurrentLine);
-                        System.out.println("TABLES_ENBALE_FOR_SYNC : "+sCurrentLine);
+                        syncTables.add(sCurrentLine);
+                        System.out.println("SYNC_ENABLED_TABLES : " + sCurrentLine);
 
                     }
 
@@ -97,6 +85,5 @@ public class FileRender {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
 }
