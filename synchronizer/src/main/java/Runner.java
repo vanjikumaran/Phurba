@@ -1,3 +1,6 @@
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -15,6 +18,9 @@ public class Runner {
     private String SourceDBPass;
     private String TargetDBUser;
     private String TargetDBPass;
+
+    private static Logger log = LogManager.getLogger(Runner.class);
+
 
     public static void main(String[] args) throws Exception {
 
