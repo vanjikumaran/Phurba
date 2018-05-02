@@ -216,7 +216,6 @@ public class Runner {
 
     private static void startSyncLog() {
 
-        
         try (Connection dbConnection = getSourceDBConnection()) {
 
             for (String table : syncTables) {
@@ -248,8 +247,8 @@ public class Runner {
                 preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGGER;");
                 preparedStatement.execute();
 
-                preparedStatement = dbConnection.prepareStatement("CREATE " +
-                        "TRIGGER " + table + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
+                preparedStatement = dbConnection.prepareStatement("CREATE TRIGGER " + table
+                        + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
                         "ON " +
                         "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
