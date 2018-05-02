@@ -256,12 +256,12 @@ public class Runner {
                         "END;");
                 preparedStatement.execute();
 
-
             }
         } catch (SQLException e) {
 
             log.error("Error occurred while executing SQL", e);
         } finally {
+
             if (null != preparedStatement) {
                 try {
                     preparedStatement.close();
@@ -298,6 +298,7 @@ public class Runner {
 
             log.error("Error occurred while executing SQL", e);
         } finally {
+
             if (null != preparedStatement) {
                 try {
                     preparedStatement.close();
@@ -322,7 +323,16 @@ public class Runner {
                 }
             }
         } catch (SQLException e) {
+            
             log.error("Error occurred while executing SQL", e);
+        } finally {
+
+            if (null != resultSet) {
+                try {
+                    resultSet.close();
+                } catch (SQLException ignored) {
+                }
+            }
         }
     }
 
@@ -347,8 +357,10 @@ public class Runner {
 
             }
         } catch (SQLException e) {
+
             log.error("Error occurred while executing SQL", e);
         } finally {
+
             if (null != preparedStatement) {
                 try {
                     preparedStatement.close();
@@ -370,13 +382,12 @@ public class Runner {
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
                         + targetDatabaseName + "." + table + "_SYNC_UPDATE_TRIGGER");
                 preparedStatement.execute();
-
-
             }
         } catch (SQLException e) {
 
             log.error("Error occurred while executing SQL", e);
         } finally {
+
             if (null != preparedStatement) {
                 try {
                     preparedStatement.close();
