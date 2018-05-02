@@ -154,7 +154,7 @@ public class Runner {
                     String[] configLine = currentLine.trim().split("=");
 
                     if (2 != configLine.length) {
-                        log.error("Config " + currentLine + " does not follow correct format");
+                        log.error("Config [" + currentLine + "] does not follow correct format");
                         continue;
                     }
 
@@ -207,7 +207,7 @@ public class Runner {
             db1.connect("jdbc:mysql://" + sourceDatabaseHost + "/" + sourceDatabaseName + "?user=" + sourceDatabaseUser
                     + "&password=" + sourceDatabasePassword + "&useSSL=false");
         } catch (SQLException e) {
-            log.error("Error occurred while crating database connection");
+            log.error("Error occurred while crating database connection", e);
         }
 
         for (String table : syncTables) {
@@ -271,7 +271,7 @@ public class Runner {
 
             } catch (SQLException e) {
 
-                log.error("Error occurred while executing SQL");
+                log.error("Error occurred while executing SQL", e);
             }
         }
     }
@@ -290,7 +290,7 @@ public class Runner {
 
         DBConnection db2 = new DBConnection();
         try {
-            db2.connect("jdbc:mysql://" + sourceDatabaseHost + "/" + sourceDatabaseName + "?user="
+            db2.connect("jdbc:mysql://" + targetDatabaseHost + "/" + targetDatabaseName + "?user="
                     + targetDatabaseUser + "&password=" + targetDatabasePassword + "&useSSL=false");
         } catch (SQLException e) {
             log.error("Error occurred while crating database connection");
@@ -308,7 +308,7 @@ public class Runner {
                 preparedStatement.execute();
 
             } catch (SQLException e) {
-                log.error("Error occurred while executing SQL");
+                log.error("Error occurred while executing SQL", e);
             }
         }
 
@@ -327,7 +327,7 @@ public class Runner {
                     // String SYCD_ID = resultSet.getString(syncd_id.SYCD_ID.toString());
 
                 } catch (SQLException e) {
-                    log.error("Error occurred while executing SQL");
+                    log.error("Error occurred while executing SQL", e);
                 }
             }
         }
