@@ -28,7 +28,7 @@ public class Runner {
     private static final String SYNC_TABLES = "sync.tables";
     private static final String COLUMN_NAME = "COLUMN_NAME";
     private static final String COLUMN_TYPE = "COLUMN_TYPE";
-    private static final String SYNC_ID = "SYNC_ID";
+    private static final String SYNC_VERSION = "SYNC_VERSION";
 
     private static String sourceDatabaseHost;
     private static String sourceDatabaseName;
@@ -285,13 +285,13 @@ public class Runner {
 
     private static void startSyncProcess() {
 
-        try (Connection sourceDBConnection = getSourceDBConnection()) {
+        try (Connection targetDBConnection1 = getTargetDBConnection()) {
 
             for (String table : syncTables) {
 
-                preparedStatement = sourceDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS"
-                        + targetDatabaseName + "." + table + "_SYNCD_ID (" +
-                        " SYNC_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
+                preparedStatement = targetDBConnection1.prepareStatement("CREATE TABLE IF NOT EXISTS"
+                        + targetDatabaseName + "." + table + "SYNC_VERSION (" +
+                        " SYNC_VERSION INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
             }
         } catch (SQLException e) {
@@ -312,13 +312,13 @@ public class Runner {
             while (true) {
                 for (String table : syncTables) {
 
-                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM"
-                            + sourceDatabaseName + "." + table + "_SYNCD_ID");
+                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
+                            + sourceDatabaseName + "." + table + "_SYNC_VERSION");
                     resultSet.next();
-                    String syncId = resultSet.getString(SYNC_ID);
+                    String syncVersion = resultSet.getString(SYNC_VERSION);
 
-                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM"
-                            + targetDatabaseName + "." + table + "_SYNCD_ID");
+                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
+                            + targetDatabaseName + "." + table + "_SYNC_VERSION");
                     resultSet.next();
                 }
             }
