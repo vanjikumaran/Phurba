@@ -174,6 +174,7 @@ public class Runner {
                     switch (config) {
                         case SOURCE_DB_HOST:
                             sourceDatabaseHost = value;
+                            break;
                         case SOURCE_DB_NAME:
                             sourceDatabaseName = value;
                             break;
