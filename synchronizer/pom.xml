@@ -76,7 +76,7 @@
                         <manifest>
                             <addClasspath>true</addClasspath>
                             <classpathPrefix>lib/</classpathPrefix>
-                            <mainClass>Runner</mainClass>
+                            <mainClass>com.migration.Runner</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
