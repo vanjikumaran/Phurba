@@ -26,6 +26,9 @@ public class Runner {
     private static final String TARGET_DB_PASSWORD = "target.db.password";
     private static final String TARGET_DB_NAME = "target.db.name";
     private static final String SYNC_TABLES = "sync.tables";
+    private static final String COLUMN_NAME = "COLUMN_NAME";
+    private static final String COLUMN_TYPE = "COLUMN_TYPE";
+    private static final String SYNC_ID = "SYNC_ID";
 
     private static String sourceDatabaseHost;
     private static String sourceDatabaseName;
@@ -214,8 +217,8 @@ public class Runner {
                         + "' AND TABLE_NAME = '" + table + "' LIMIT 1");
                 resultSet.next();
 
-                String primeryCol = resultSet.getString(information_schema.COLUMN_NAME.toString());
-                String primeryColType = resultSet.getString(information_schema.COLUMN_TYPE.toString());
+                String primeryCol = resultSet.getString(COLUMN_NAME);
+                String primeryColType = resultSet.getString(COLUMN_TYPE);
 
                 preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
                         + sourceDatabaseName + "." + table + "_SYNC;");
@@ -310,9 +313,9 @@ public class Runner {
                 for (String table : syncTables) {
 
                     resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM"
-                            + targetDatabaseName + "." + table + "_SYNCD_ID");
+                            + sourceDatabaseName + "." + table + "_SYNCD_ID");
                     resultSet.next();
-                    String SYNC_ID = resultSet.getString(sync_id.SYNC_ID.toString());
+                    String syncId = resultSet.getString(SYNC_ID);
 
                     resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM"
                             + targetDatabaseName + "." + table + "_SYNCD_ID");
@@ -420,13 +423,5 @@ public class Runner {
         }
 
         return dbConnection;
-    }
-
-    enum information_schema {
-        COLUMN_NAME, COLUMN_TYPE;
-    }
-
-    enum sync_id {
-        SYNC_ID;
     }
 }
