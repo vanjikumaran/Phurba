@@ -4,10 +4,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
+import java.sql.*;
 
 /**
  * Following commands are supported,
@@ -335,10 +332,76 @@ public class Runner {
 
     private static void deleteSyncLog() {
 
+        try (Connection dbConnection = getSourceDBConnection()) {
+            for (String table : syncTables) {
+
+
+                preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
+                        + targetDatabaseName + "." + table + "_SYNC_INSERT_TRIGGER");
+                preparedStatement.execute();
+
+                preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
+                        + targetDatabaseName + "." + table + "_SYNC_UPDATE_TRIGGER");
+                preparedStatement.execute();
+
+                preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
+                        + targetDatabaseName + "." + table + "_SYNC");
+                preparedStatement.execute();
+
+
+            }
+        } catch (SQLException e) {
+            log.error("Error occurred while executing SQL", e);
+        } finally {
+            if (null != preparedStatement) {
+                try {
+                    preparedStatement.close();
+                } catch (SQLException ignored) {
+                }
+            }
+        }
     }
 
     private static void stopSyncLog() {
 
+        try (Connection dbConnection = getSourceDBConnection()) {
+
+            for (String table : syncTables) {
+                preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
+                        + targetDatabaseName + "." + table + "_SYNC_INSERT_TRIGGER");
+                preparedStatement.execute();
+
+                preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
+                        + targetDatabaseName + "." + table + "_SYNC_UPDATE_TRIGGER");
+                preparedStatement.execute();
+
+
+            }
+        } catch (SQLException e) {
+
+            log.error("Error occurred while executing SQL", e);
+        } finally {
+            if (null != preparedStatement) {
+                try {
+                    preparedStatement.close();
+                } catch (SQLException ignored) {
+                }
+            }
+        }
+    }
+
+    private static Connection getSourceDBConnection() {
+
+        Connection dbConnection = null;
+        try {
+            dbConnection = DriverManager.getConnection("jdbc:mysql://" + sourceDatabaseHost + "/"
+                    + sourceDatabaseName + "?user=" + sourceDatabaseUser + "&password=" + sourceDatabasePassword
+                    + "&useSSL=false");
+        } catch (SQLException e) {
+            log.error("Error occurred while creating source database connection", e);
+        }
+
+        return dbConnection;
     }
 
     enum information_schema {
