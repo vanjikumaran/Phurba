@@ -80,11 +80,14 @@ public class Runner {
             getConfigFromArgs(args);
         } else {
             log.info("No optional arguments passed. Reading from config file...");
-            getConfigFromFile();
+            if (!getConfigFromFile()){
+                log.info("Error occurred while reading config file...");
+                return;
+            }
         }
 
         // configs are available at this point. Progressing to execute the command
-        switch (args[1]) {
+        switch (args[0]) {
             case START_SYNC_LOG_COMMAND:
                 startSyncLog();
                 break;
@@ -147,7 +150,7 @@ public class Runner {
         }
     }
 
-    private static void getConfigFromFile() {
+    private static boolean getConfigFromFile() {
 
         try (BufferedReader br = new BufferedReader(new FileReader(CONFIG_PROPERTIES_FILE))) {
 
@@ -201,7 +204,9 @@ public class Runner {
 
         } catch (IOException e) {
             log.error("Error occurred while reading the config file", e);
+            return false;
         }
+        return true;
     }
 
     private static void startSyncLog() {
@@ -285,29 +290,15 @@ public class Runner {
 
     private static void startSyncProcess() {
 
-        try (Connection targetDBConnection1 = getTargetDBConnection()) {
+        try (Connection targetDBConnection = getTargetDBConnection()) {
 
             for (String table : syncTables) {
 
-                preparedStatement = targetDBConnection1.prepareStatement("CREATE TABLE IF NOT EXISTS"
+                preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS"
                         + targetDatabaseName + "." + table + "SYNC_VERSION (" +
                         " SYNC_VERSION INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
             }
-        } catch (SQLException e) {
-
-            log.error("Error occurred while executing SQL", e);
-        } finally {
-
-            if (null != preparedStatement) {
-                try {
-                    preparedStatement.close();
-                } catch (SQLException ignored) {
-                }
-            }
-        }
-
-        try (Connection targetDBConnection = getTargetDBConnection()) {
 
             while (true) {
                 for (String table : syncTables) {
@@ -317,9 +308,12 @@ public class Runner {
                     resultSet.next();
                     String syncVersion = resultSet.getString(SYNC_VERSION);
 
-                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
-                            + targetDatabaseName + "." + table + "_SYNC_VERSION");
-                    resultSet.next();
+                    if (null != syncVersion) {
+
+                        resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
+                                + targetDatabaseName + "." + table + "_SYNC_VERSION");
+                        resultSet.next();
+                    }
                 }
             }
         } catch (SQLException e) {
