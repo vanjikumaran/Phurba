@@ -222,13 +222,13 @@ public class Runner {
                 preparedStatement.execute();
 
 
-                preparedStatement = dbConnection.prepareStatement("CREATE TABLE " + sourceDatabaseName + "." + table 
+                preparedStatement = dbConnection.prepareStatement("CREATE TABLE " + sourceDatabaseName + "." + table
                         + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
                         " " + primeryCol + " " + primeryColType + " NOT NULL," +
                         " PRIMARY KEY (SYNC_ID)" +
                         ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
-                
+
                 preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGR;");
                 preparedStatement.execute();
 
@@ -289,15 +289,10 @@ public class Runner {
 
             for (String table : syncTables) {
 
-//                preparedStatement = db2.connection.prepareStatement("DROP TABLE IF EXISTS " + CONFIG_CONFIG_F_ILE_READER.targetSchema + "." + table + "_SYNCD_ID;");
-//                preparedStatement.execute();
-
                 preparedStatement = sourceDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS"
                         + targetDatabaseName + "." + table + "_SYNCD_ID (" +
                         " SYNC_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
-
-
             }
         } catch (SQLException e) {
 
@@ -324,7 +319,6 @@ public class Runner {
                     resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM"
                             + targetDatabaseName + "." + table + "_SYNCD_ID");
                     resultSet.next();
-                    // String SYNC_ID = resultSet.getString(sync_id.SYNC_ID.toString());
                 }
             }
         } catch (SQLException e) {
