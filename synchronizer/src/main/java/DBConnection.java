@@ -7,8 +7,8 @@ import java.sql.SQLException;
 
 class DBConnection {
 
-    Connection connection;
     private static Logger log = LogManager.getLogger(DBConnection.class);
+    Connection connection;
 
     void connect(String jdbcURL) throws SQLException {
 
@@ -17,6 +17,7 @@ class DBConnection {
 
             connection = DriverManager.getConnection(jdbcURL);
         } catch (ClassNotFoundException e) {
-            log.error("Error occurred while executing SQL");        }
+            log.error("Error occurred while executing SQL");
+        }
     }
 }
