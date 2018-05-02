@@ -198,20 +198,12 @@ public class Runner {
 
     private static void startSyncLog() {
 
+        try (Connection dbConnection = getTargetDBConnection()) {
 
-        DBConnection db1 = new DBConnection();
-        try {
-            db1.connect("jdbc:mysql://" + sourceDatabaseHost + "/" + sourceDatabaseName + "?user=" + sourceDatabaseUser
-                    + "&password=" + sourceDatabasePassword + "&useSSL=false");
-        } catch (SQLException e) {
-            log.error("Error occurred while crating database connection", e);
-        }
-
-        for (String table : syncTables) {
-            try {
+            for (String table : syncTables) {
 
 
-                statement = db1.connection.createStatement();
+                statement = dbConnection.createStatement();
 
                 resultSet = statement.executeQuery("SELECT COLUMN_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE "
                         + "COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '" + sourceDatabaseName
@@ -221,30 +213,29 @@ public class Runner {
                 String primeryCol = resultSet.getString(information_schema.COLUMN_NAME.toString());
                 String primeryColType = resultSet.getString(information_schema.COLUMN_TYPE.toString());
 
-                preparedStatement = db1.connection.prepareStatement("DROP TABLE IF EXISTS "
+                preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
                         + sourceDatabaseName + "." + table + "_SYNC;");
                 preparedStatement.execute();
 
-                preparedStatement = db1.connection.prepareStatement("DROP TABLE IF EXISTS "
+                preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
                         + sourceDatabaseName + "." + table + "_SYNC;");
                 preparedStatement.execute();
 
 
-                preparedStatement = db1.connection.prepareStatement("CREATE TABLE " + sourceDatabaseName + "." + table + "_SYNC (" +
-                        " SYC_ID INT NOT NULL AUTO_INCREMENT," +
+                preparedStatement = dbConnection.prepareStatement("CREATE TABLE " + sourceDatabaseName + "." + table 
+                        + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
                         " " + primeryCol + " " + primeryColType + " NOT NULL," +
-                        " PRIMARY KEY (SYC_ID)" +
+                        " PRIMARY KEY (SYNC_ID)" +
                         ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
-
-
-                preparedStatement = db1.connection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGR;");
+                
+                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGR;");
                 preparedStatement.execute();
 
-                preparedStatement = db1.connection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGR;");
+                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGR;");
                 preparedStatement.execute();
 
-                preparedStatement = db1.connection.prepareStatement("CREATE " +
+                preparedStatement = dbConnection.prepareStatement("CREATE " +
                         "TRIGGER " + table + "_SYNC_INSERT_TRIGR BEFORE INSERT " +
                         "ON " +
                         "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
@@ -255,7 +246,7 @@ public class Runner {
                 preparedStatement.execute();
 
 
-                preparedStatement = db1.connection.prepareStatement("CREATE " +
+                preparedStatement = dbConnection.prepareStatement("CREATE " +
                         "TRIGGER " + table + "_SYNC_UPDATE_TRIGR BEFORE UPDATE " +
                         "ON " +
                         "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN UPDATE " +
@@ -266,67 +257,78 @@ public class Runner {
                 preparedStatement.execute();
 
 
-            } catch (SQLException e) {
+            }
+        } catch (SQLException e) {
 
-                log.error("Error occurred while executing SQL", e);
+            log.error("Error occurred while executing SQL", e);
+        } finally {
+            if (null != preparedStatement) {
+                try {
+                    preparedStatement.close();
+                } catch (SQLException ignored) {
+                }
+            }
+            if (null != resultSet) {
+                try {
+                    resultSet.close();
+                } catch (SQLException ignored) {
+                }
+            }
+            if (null != statement) {
+                try {
+                    statement.close();
+                } catch (SQLException ignored) {
+                }
             }
         }
     }
 
     private static void startSyncProcess() {
 
-        DBConnection db1 = new DBConnection();
-        try {
-            db1.connect("jdbc:mysql://" + sourceDatabaseHost + "/" + sourceDatabaseName + "?user="
-                    + sourceDatabaseUser + "&password=" + sourceDatabasePassword + "&useSSL=false");
-        } catch (SQLException e) {
-            log.error("Error occurred while crating database connection");
-        }
+        try (Connection sourceDBConnection = getSourceDBConnection()) {
 
-        //statement = db1.connection.createStatement();
-
-        DBConnection db2 = new DBConnection();
-        try {
-            db2.connect("jdbc:mysql://" + targetDatabaseHost + "/" + targetDatabaseName + "?user="
-                    + targetDatabaseUser + "&password=" + targetDatabasePassword + "&useSSL=false");
-        } catch (SQLException e) {
-            log.error("Error occurred while crating database connection");
-        }
-
-        for (String table : syncTables) {
-            try {
+            for (String table : syncTables) {
 
 //                preparedStatement = db2.connection.prepareStatement("DROP TABLE IF EXISTS " + CONFIG_CONFIG_F_ILE_READER.targetSchema + "." + table + "_SYNCD_ID;");
 //                preparedStatement.execute();
 
-                preparedStatement = db1.connection.prepareStatement("CREATE TABLE IF NOT EXISTS"
+                preparedStatement = sourceDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS"
                         + targetDatabaseName + "." + table + "_SYNCD_ID (" +
-                        " SYCD_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
+                        " SYNC_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
 
-            } catch (SQLException e) {
-                log.error("Error occurred while executing SQL", e);
+
+            }
+        } catch (SQLException e) {
+
+            log.error("Error occurred while executing SQL", e);
+        } finally {
+            if (null != preparedStatement) {
+                try {
+                    preparedStatement.close();
+                } catch (SQLException ignored) {
+                }
             }
         }
 
-        while (true) {
-            for (String table : syncTables) {
-                try {
+        try (Connection targetDBConnection = getTargetDBConnection()) {
 
-                    resultSet = db2.connection.createStatement().executeQuery("SELECT SYCD_ID FROM"
+            while (true) {
+                for (String table : syncTables) {
+
+                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM"
                             + targetDatabaseName + "." + table + "_SYNCD_ID");
                     resultSet.next();
-                    String SYCD_ID = resultSet.getString(syncd_id.SYCD_ID.toString());
+                    String SYNC_ID = resultSet.getString(sync_id.SYNC_ID.toString());
 
-                    resultSet = db1.connection.createStatement().executeQuery("SELECT SYCD_ID FROM"
+                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM"
                             + targetDatabaseName + "." + table + "_SYNCD_ID");
                     resultSet.next();
-                    // String SYCD_ID = resultSet.getString(syncd_id.SYCD_ID.toString());
-
-                } catch (SQLException e) {
-                    log.error("Error occurred while executing SQL", e);
+                    // String SYNC_ID = resultSet.getString(sync_id.SYNC_ID.toString());
                 }
             }
+        } catch (SQLException e) {
+            log.error("Error occurred while executing SQL", e);
         }
     }
 
@@ -404,11 +406,25 @@ public class Runner {
         return dbConnection;
     }
 
+    private static Connection getTargetDBConnection() {
+
+        Connection dbConnection = null;
+        try {
+            dbConnection = DriverManager.getConnection("jdbc:mysql://" + targetDatabaseHost + "/"
+                    + targetDatabaseName + "?user=" + targetDatabaseUser + "&password=" + targetDatabasePassword
+                    + "&useSSL=false");
+        } catch (SQLException e) {
+            log.error("Error occurred while creating source database connection", e);
+        }
+
+        return dbConnection;
+    }
+
     enum information_schema {
         COLUMN_NAME, COLUMN_TYPE;
     }
 
-    enum syncd_id {
-        SYCD_ID;
+    enum sync_id {
+        SYNC_ID;
     }
 }
