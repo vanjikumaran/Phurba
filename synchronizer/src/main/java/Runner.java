@@ -7,25 +7,7 @@ import java.io.IOException;
 import java.sql.*;
 
 /**
- * Following commands are supported,
- * <p>
- * start-sync-log : Create Sync log tables and triggers
- * stop-sync-log : Drop the triggers
- * delete-sync-log : Drop the sync log tables
- * sync-process : Extract data from source DB and insert/update in the target DB.
- * <p>
- * Configs can be done using a properties file or flags passed as args.
- * Config list,
- * <p>
- * source.db.host
- * source.db.name
- * source.db.user
- * source.db.password
- * target.db.host
- * target.db.user
- * target.db.password
- * target.db.name
- * sync.tables
+ * Runs different commands related to synchronization of database
  */
 public class Runner {
 
@@ -61,6 +43,29 @@ public class Runner {
 
     private static Logger log = LogManager.getLogger(Runner.class);
 
+    /**
+     * Following commands are supported,
+     * <p>
+     * start-sync-log : Create Sync log tables and triggers
+     * stop-sync-log : Drop the triggers
+     * delete-sync-log : Drop the sync log tables
+     * sync-process : Extract data from source DB and insert/update in the target DB.
+     * <p>
+     * Configs can be done using a properties file or flags passed as args.
+     * Config list,
+     * <p>
+     * source.db.host
+     * source.db.name
+     * source.db.user
+     * source.db.password
+     * target.db.host
+     * target.db.user
+     * target.db.password
+     * target.db.name
+     * sync.tables
+     *
+     * @param args command and configuration flags
+     */
     public static void main(String[] args) {
 
         if (0 == args.length) {
@@ -202,7 +207,6 @@ public class Runner {
 
             for (String table : syncTables) {
 
-
                 statement = dbConnection.createStatement();
 
                 resultSet = statement.executeQuery("SELECT COLUMN_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE "
@@ -217,11 +221,6 @@ public class Runner {
                         + sourceDatabaseName + "." + table + "_SYNC;");
                 preparedStatement.execute();
 
-                preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
-                        + sourceDatabaseName + "." + table + "_SYNC;");
-                preparedStatement.execute();
-
-
                 preparedStatement = dbConnection.prepareStatement("CREATE TABLE " + sourceDatabaseName + "." + table
                         + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
                         " " + primeryCol + " " + primeryColType + " NOT NULL," +
@@ -229,14 +228,14 @@ public class Runner {
                         ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
 
-                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGR;");
+                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGGER;");
                 preparedStatement.execute();
 
-                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGR;");
+                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGGER;");
                 preparedStatement.execute();
 
                 preparedStatement = dbConnection.prepareStatement("CREATE " +
-                        "TRIGGER " + table + "_SYNC_INSERT_TRIGR BEFORE INSERT " +
+                        "TRIGGER " + table + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
                         "ON " +
                         "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
@@ -245,9 +244,8 @@ public class Runner {
                         "END;");
                 preparedStatement.execute();
 
-
                 preparedStatement = dbConnection.prepareStatement("CREATE " +
-                        "TRIGGER " + table + "_SYNC_UPDATE_TRIGR BEFORE UPDATE " +
+                        "TRIGGER " + table + "_SYNC_UPDATE_TRIGGER BEFORE UPDATE " +
                         "ON " +
                         "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN UPDATE " +
                         "INTO " +
@@ -255,7 +253,6 @@ public class Runner {
                         "VALUES(NEW." + primeryCol + "); " +
                         "END;");
                 preparedStatement.execute();
-
             }
         } catch (SQLException e) {
 
@@ -323,7 +320,7 @@ public class Runner {
                 }
             }
         } catch (SQLException e) {
-            
+
             log.error("Error occurred while executing SQL", e);
         } finally {
 
@@ -339,8 +336,8 @@ public class Runner {
     private static void deleteSyncLog() {
 
         try (Connection dbConnection = getSourceDBConnection()) {
-            for (String table : syncTables) {
 
+            for (String table : syncTables) {
 
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
                         + targetDatabaseName + "." + table + "_SYNC_INSERT_TRIGGER");
