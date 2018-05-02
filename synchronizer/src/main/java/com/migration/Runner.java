@@ -79,13 +79,15 @@ public class Runner {
         }
 
         if (1 == args.length) {
-            getConfigFromArgs(args);
-        } else {
+
             log.info("No optional arguments passed. Reading from config file...");
             if (!getConfigFromFile()){
                 log.info("Error occurred while reading config file...");
                 return;
             }
+        } else {
+
+            getConfigFromArgs(args);
         }
 
         // configs are available at this point. Progressing to execute the command
@@ -214,7 +216,8 @@ public class Runner {
 
     private static void startSyncLog() {
 
-        try (Connection dbConnection = getTargetDBConnection()) {
+        
+        try (Connection dbConnection = getSourceDBConnection()) {
 
             for (String table : syncTables) {
 
@@ -296,6 +299,7 @@ public class Runner {
         try (Connection targetDBConnection = getTargetDBConnection()) {
 
             for (String table : syncTables) {
+
 
                 preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS"
                         + targetDatabaseName + "." + table + "SYNC_VERSION (" +
@@ -416,7 +420,7 @@ public class Runner {
                     + targetDatabaseName + "?user=" + targetDatabaseUser + "&password=" + targetDatabasePassword
                     + "&useSSL=false");
         } catch (SQLException e) {
-            log.error("Error occurred while creating source database connection", e);
+            log.error("Error occurred while creating target database connection", e);
         }
 
         return dbConnection;
