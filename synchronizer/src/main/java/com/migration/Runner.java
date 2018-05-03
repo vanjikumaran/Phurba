@@ -214,57 +214,64 @@ public class Runner {
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
+        String query;
 
         try (Connection dbConnection = getSourceDBConnection()) {
 
             for (String table : syncTables) {
 
                 statement = dbConnection.createStatement();
-
-                resultSet = statement.executeQuery("SELECT COLUMN_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE "
+                query = "SELECT COLUMN_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE "
                         + "COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '" + sourceDatabaseName
-                        + "' AND TABLE_NAME = '" + table + "' LIMIT 1");
+                        + "' AND TABLE_NAME = '" + table + "' LIMIT 1";
+                resultSet = statement.executeQuery(query);
                 resultSet.next();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
                 String primeryCol = resultSet.getString(COLUMN_NAME);
                 String primeryColType = resultSet.getString(COLUMN_TYPE);
 
-                preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
-                        + sourceDatabaseName + "." + table + "_SYNC;");
+                query = "DROP TABLE IF EXISTS " + sourceDatabaseName + "." + table + "_SYNC;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement("CREATE TABLE " + sourceDatabaseName + "." + table
-                        + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
-                        " " + primeryCol + " " + primeryColType + " NOT NULL," +
-                        " PRIMARY KEY (SYNC_ID)" +
-                        ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
+                query = "CREATE TABLE " + sourceDatabaseName + "." + table + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
+                        " " + primeryCol + " " + primeryColType + " NOT NULL, PRIMARY KEY (SYNC_ID)" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=latin1;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGGER;");
+                query = "DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGGER;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGGER;");
+                query = "DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGGER;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement("CREATE TRIGGER " + table
-                        + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
-                        "ON " +
-                        "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
+                query = "CREATE TRIGGER " + table + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
+                        "ON " + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
-                        "" + sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
+                        sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
                         "VALUES(NEW." + primeryCol + "); " +
-                        "END;");
+                        "END;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement("CREATE " +
-                        "TRIGGER " + table + "_SYNC_UPDATE_TRIGGER BEFORE UPDATE " +
-                        "ON " +
-                        "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN UPDATE " +
+                query = "CREATE TRIGGER " + table + "_SYNC_UPDATE_TRIGGER BEFORE UPDATE " +
+                        "ON " + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
-                        "" + sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
+                        sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
                         "VALUES(NEW." + primeryCol + "); " +
-                        "END;");
+                        "END;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
             }
         } catch (SQLException e) {
 
