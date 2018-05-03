@@ -328,26 +328,26 @@ public class Runner {
             }
         }
 
-        int targetDBSyncdId;
+        int targetDBSyncId;
         int sourceDBMaxSyncId;
         int nextSyncId;
-        String primerykey;
+        String primeryKey;
 
         while (true) {
             for (String table : syncTables) {
                 try {
-                    targetDBSyncdId = 0;
+                    targetDBSyncId = 0;
                     sourceDBMaxSyncId = 0;
                     nextSyncId = 0;
 
 
-                    primerykey = null;
+                    primeryKey = null;
 
                     resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYCD_ID FROM "
                             + targetDatabaseName + "." + table + "_SYNCD_ID;");
 
                     if (resultSet.next()) {
-                        targetDBSyncdId = resultSet.getInt("SYCD_ID");
+                        targetDBSyncId = resultSet.getInt("SYCD_ID");
                         if (resultSet.wasNull()) {
                             // handle NULL field value
                         }
@@ -363,10 +363,10 @@ public class Runner {
                         }
                     }
 
-                    if (sourceDBMaxSyncId > targetDBSyncdId) {
+                    if (sourceDBMaxSyncId > targetDBSyncId) {
 
                         resultSet = sourcedbConnection.createStatement().executeQuery("SELECT SYC_ID FROM "
-                                + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID > " + targetDBSyncdId
+                                + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID > " + targetDBSyncId
                                 + " ORDER BY SYC_ID LIMIT 1;");
 
                         if (resultSet.next()) {
@@ -389,14 +389,14 @@ public class Runner {
                                 + nextSyncId + ";");
 
                         if (resultSet.next()) {
-                            primerykey = resultSet.getString(primeryCol);
+                            primeryKey = resultSet.getString(primeryCol);
                             if (resultSet.wasNull()) {
                                 // handle NULL field value
                             }
                         }
 
                         resultSet = sourcedbConnection.createStatement().executeQuery("SELECT * FROM "
-                                + sourceDatabaseName + "." + table + " WHERE " + primeryCol + " = '" + primerykey + "';");
+                                + sourceDatabaseName + "." + table + " WHERE " + primeryCol + " = '" + primeryKey + "';");
                         resultSet.next();
 
 
@@ -435,7 +435,7 @@ public class Runner {
 
                         preparedStatement = targetDBConnection.prepareStatement("update " + targetDatabaseName
                                 + "." + table + "_SYNCD_ID SET SYCD_ID = " + nextSyncId + " WHERE SYCD_ID = "
-                                + targetDBSyncdId + ";");
+                                + targetDBSyncId + ";");
 
                         preparedStatement.execute();
 
@@ -457,7 +457,6 @@ public class Runner {
             }
         }
     }
-
 
     private static void deleteSyncLog() {
 
