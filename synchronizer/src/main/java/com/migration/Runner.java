@@ -218,6 +218,11 @@ public class Runner {
 
         try (Connection dbConnection = getSourceDBConnection()) {
 
+            if (null == dbConnection) {
+                log.error("Could not make the database connection");
+                return;
+            }
+
             for (String table : syncTables) {
 
                 statement = dbConnection.createStatement();
@@ -306,6 +311,11 @@ public class Runner {
 
         try (Connection targetDBConnection = getTargetDBConnection()) {
 
+            if (null == targetDBConnection) {
+                log.error("Could not make the database connection");
+                return;
+            }
+
             for (String table : syncTables) {
 
 
@@ -351,6 +361,11 @@ public class Runner {
 
         try (Connection dbConnection = getSourceDBConnection()) {
 
+            if (null == dbConnection) {
+                log.error("Could not make the database connection");
+                return;
+            }
+
             for (String table : syncTables) {
 
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
@@ -387,7 +402,13 @@ public class Runner {
 
         try (Connection dbConnection = getSourceDBConnection()) {
 
+            if (null == dbConnection) {
+                log.error("Could not make the database connection");
+                return;
+            }
+
             for (String table : syncTables) {
+
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
                         + targetDatabaseName + "." + table + "_SYNC_INSERT_TRIGGER");
                 preparedStatement.execute();
