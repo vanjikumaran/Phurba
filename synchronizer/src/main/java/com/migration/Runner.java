@@ -324,7 +324,7 @@ public class Runner {
                 preparedStatement.execute();
 
             } catch (SQLException e) {
-                e.printStackTrace();
+                log.error("Error occurred while executing SQL", e);
             }
         }
 
