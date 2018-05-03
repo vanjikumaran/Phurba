@@ -314,14 +314,16 @@ public class Runner {
         Connection targetDBConnection = getTargetDBConnection();
         Connection sourceDBConnection = getSourceDBConnection();
 
+        String query;
+
         for (String table : syncTables) {
             try {
 
-                preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS "
-                        + targetDatabaseName + "." + table + "_SYNC_VERSION (" +
-                        " SYNC_ID INT" +
-                        ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
+                query = "CREATE TABLE IF NOT EXISTS " + targetDatabaseName + "." + table + "_SYNC_VERSION (" +
+                        " SYNC_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;";
+                preparedStatement = targetDBConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
             } catch (SQLException e) {
                 log.error("Error occurred while executing SQL", e);
@@ -339,7 +341,6 @@ public class Runner {
                     targetDBSyncId = 0;
                     sourceDBMaxSyncId = 0;
                     nextSyncId = 0;
-
 
                     primeryKey = null;
 
