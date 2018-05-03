@@ -305,8 +305,7 @@ public class Runner {
         }
     }
 
-
-    private static void startSyncProcess (){
+    private static void startSyncProcess() {
 
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
@@ -318,8 +317,9 @@ public class Runner {
         for (String table : syncTables) {
             try {
 
-                preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS " + targetDatabaseName+"."+table + "_SYNCD_ID (" +
-                        " SYCD_ID INT"+
+                preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS "
+                        + targetDatabaseName + "." + table + "_SYNCD_ID (" +
+                        " SYCD_ID INT" +
                         ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
 
@@ -333,18 +333,18 @@ public class Runner {
         int nextSyncId;
         String primerykey;
 
-        while(true){
+        while (true) {
             for (String table : syncTables) {
                 try {
-                    targetDBSyncdId =0;
-                    sourceDBMaxSyncId =0;
+                    targetDBSyncdId = 0;
+                    sourceDBMaxSyncId = 0;
                     nextSyncId = 0;
 
 
-                    primerykey =null;
+                    primerykey = null;
 
-                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYCD_ID FROM " + targetDatabaseName + "." + table + "_SYNCD_ID;");
-                    //resultSet.next();
+                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYCD_ID FROM "
+                            + targetDatabaseName + "." + table + "_SYNCD_ID;");
 
                     if (resultSet.next()) {
                         targetDBSyncdId = resultSet.getInt("SYCD_ID");
@@ -353,7 +353,8 @@ public class Runner {
                         }
                     }
 
-                    resultSet = sourcedbConnection.createStatement().executeQuery("SELECT MAX(SYC_ID) FROM " + sourceDatabaseName + "." + table + "_SYNC;");
+                    resultSet = sourcedbConnection.createStatement().executeQuery("SELECT MAX(SYC_ID) FROM "
+                            + sourceDatabaseName + "." + table + "_SYNC;");
 
                     if (resultSet.next()) {
                         sourceDBMaxSyncId = resultSet.getInt("MAX(SYC_ID)");
@@ -362,9 +363,11 @@ public class Runner {
                         }
                     }
 
-                    if (sourceDBMaxSyncId > targetDBSyncdId){
+                    if (sourceDBMaxSyncId > targetDBSyncdId) {
 
-                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT SYC_ID FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID > "+targetDBSyncdId+" ORDER BY SYC_ID LIMIT 1;");
+                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT SYC_ID FROM "
+                                + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID > " + targetDBSyncdId
+                                + " ORDER BY SYC_ID LIMIT 1;");
 
                         if (resultSet.next()) {
                             nextSyncId = resultSet.getInt("SYC_ID");
@@ -374,12 +377,16 @@ public class Runner {
                         }
 
 
-                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"+sourceDatabaseName+"' AND TABLE_NAME = '" + table + "' LIMIT 1;");
+                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT COLUMN_NAME FROM " +
+                                "information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"
+                                + sourceDatabaseName + "' AND TABLE_NAME = '" + table + "' LIMIT 1;");
                         resultSet.next();
 
                         String primeryCol = resultSet.getString(COLUMN_NAME);
 
-                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT SYC_ID," +primeryCol+ " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID = "+nextSyncId+";");
+                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT SYC_ID,"
+                                + primeryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID = "
+                                + nextSyncId + ";");
 
                         if (resultSet.next()) {
                             primerykey = resultSet.getString(primeryCol);
@@ -388,7 +395,8 @@ public class Runner {
                             }
                         }
 
-                        resultSet =  sourcedbConnection.createStatement().executeQuery("SELECT * FROM " + sourceDatabaseName + "." + table +" WHERE "+primeryCol+" = '"+primerykey+"';");
+                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT * FROM "
+                                + sourceDatabaseName + "." + table + " WHERE " + primeryCol + " = '" + primerykey + "';");
                         resultSet.next();
 
 
@@ -399,6 +407,7 @@ public class Runner {
                         StringBuilder bindVariables = new StringBuilder();
 
                         for (int i = 1; i <= meta.getColumnCount(); i++) {
+
                             if (i > 1) {
                                 columnNames.append(", ");
                                 bindVariables.append(", ");
@@ -407,8 +416,6 @@ public class Runner {
                             columnNames.append(meta.getColumnName(i));
                             bindVariables.append('?');
                             rowValues.add(resultSet.getObject(meta.getColumnName(i)));
-
-
                         }
 
                         String sql = "REPLACE INTO " + targetDatabaseName + "." + table + " ("
@@ -419,14 +426,16 @@ public class Runner {
 
                         preparedStatement = targetDBConnection.prepareStatement(sql);
 
-                        for (int i=0; i<rowValues.size(); i++) {
-                            preparedStatement.setObject(i+1,rowValues.get(i));
+                        for (int i = 0; i < rowValues.size(); i++) {
+                            preparedStatement.setObject(i + 1, rowValues.get(i));
 
                         }
 
                         preparedStatement.execute();
 
-                        preparedStatement = targetDBConnection.prepareStatement("update " + targetDatabaseName + "." + table + "_SYNCD_ID SET SYCD_ID = "+nextSyncId+" WHERE SYCD_ID = "+targetDBSyncdId+";");
+                        preparedStatement = targetDBConnection.prepareStatement("update " + targetDatabaseName
+                                + "." + table + "_SYNCD_ID SET SYCD_ID = " + nextSyncId + " WHERE SYCD_ID = "
+                                + targetDBSyncdId + ";");
 
                         preparedStatement.execute();
 
@@ -434,9 +443,8 @@ public class Runner {
 
                     }
 
-
-                } catch (Exception e) {
-                    e.printStackTrace();
+                } catch (SQLException e) {
+                    log.error("Error occurred while creating target database connection", e);
                 } finally {
 
                     if (null != resultSet) {
@@ -447,7 +455,6 @@ public class Runner {
                     }
                 }
             }
-
         }
     }
 
