@@ -7,6 +7,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.sql.*;
+import java.util.ArrayList;
 
 /**
  * Runs different commands related to synchronization of database
@@ -214,57 +215,64 @@ public class Runner {
         Statement statement = null;
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
+        String query;
 
         try (Connection dbConnection = getSourceDBConnection()) {
 
             for (String table : syncTables) {
 
                 statement = dbConnection.createStatement();
-
-                resultSet = statement.executeQuery("SELECT COLUMN_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE "
+                query = "SELECT COLUMN_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE "
                         + "COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '" + sourceDatabaseName
-                        + "' AND TABLE_NAME = '" + table + "' LIMIT 1");
+                        + "' AND TABLE_NAME = '" + table + "' LIMIT 1";
+                resultSet = statement.executeQuery(query);
                 resultSet.next();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
                 String primeryCol = resultSet.getString(COLUMN_NAME);
                 String primeryColType = resultSet.getString(COLUMN_TYPE);
 
-                preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
-                        + sourceDatabaseName + "." + table + "_SYNC;");
+                query = "DROP TABLE IF EXISTS " + sourceDatabaseName + "." + table + "_SYNC;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement("CREATE TABLE " + sourceDatabaseName + "." + table
-                        + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
-                        " " + primeryCol + " " + primeryColType + " NOT NULL," +
-                        " PRIMARY KEY (SYNC_ID)" +
-                        ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
+                query = "CREATE TABLE " + sourceDatabaseName + "." + table + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
+                        " " + primeryCol + " " + primeryColType + " NOT NULL, PRIMARY KEY (SYNC_ID)" +
+                        ") ENGINE=InnoDB DEFAULT CHARSET=latin1;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGGER;");
+                query = "DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGGER;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement(" DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGGER;");
+                query = "DROP TRIGGER IF EXISTS " + table + "_SYNC_UPDATE_TRIGGER;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement("CREATE TRIGGER " + table
-                        + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
-                        "ON " +
-                        "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
+                query = "CREATE TRIGGER " + table + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
+                        "ON " + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
-                        "" + sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
+                        sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
                         "VALUES(NEW." + primeryCol + "); " +
-                        "END;");
+                        "END;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
 
-                preparedStatement = dbConnection.prepareStatement("CREATE " +
-                        "TRIGGER " + table + "_SYNC_UPDATE_TRIGGER BEFORE UPDATE " +
-                        "ON " +
-                        "" + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN UPDATE " +
+                query = "CREATE TRIGGER " + table + "_SYNC_UPDATE_TRIGGER BEFORE UPDATE " +
+                        "ON " + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
-                        "" + sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
+                        sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
                         "VALUES(NEW." + primeryCol + "); " +
-                        "END;");
+                        "END;";
+                preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
+                log.info(String.format("Successfully executed query [%s] ", query));
             }
         } catch (SQLException e) {
 
@@ -292,49 +300,194 @@ public class Runner {
         }
     }
 
-    private static void startSyncProcess() {
+//    private static void startSyncProcess() {
+//
+//        ResultSet resultSet = null;
+//        PreparedStatement preparedStatement = null;
+//
+//        try (Connection targetDBConnection = getTargetDBConnection()) {
+//
+//            for (String table : syncTables) {
+//
+//
+//                preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS"
+//                        + targetDatabaseName + "." + table + "SYNC_VERSION (" +
+//                        " SYNC_VERSION INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
+//                preparedStatement.execute();
+//            }
+//
+//            while (true) {
+//                for (String table : syncTables) {
+//
+//                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
+//                            + sourceDatabaseName + "." + table + "_SYNC_VERSION");
+//                    resultSet.next();
+//                    String syncVersion = resultSet.getString(SYNC_VERSION);
+//
+//                    if (null != syncVersion) {
+//
+//                        resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
+//                                + targetDatabaseName + "." + table + "_SYNC_VERSION");
+//                        resultSet.next();
+//                    }
+//                }
+//            }
+//        } catch (SQLException e) {
+//
+//            log.error("Error occurred while executing SQL", e);
+//        } finally {
+//
+//            if (null != resultSet) {
+//                try {
+//                    resultSet.close();
+//                } catch (SQLException ignored) {
+//                }
+//            }
+//        }
+//    }
+
+    private static void startSyncProcess (){
 
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
+        ArrayList<Object> rowValues = new ArrayList<Object>();
 
-        try (Connection targetDBConnection = getTargetDBConnection()) {
-
-            for (String table : syncTables) {
-
-
-                preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS"
-                        + targetDatabaseName + "." + table + "SYNC_VERSION (" +
-                        " SYNC_VERSION INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;");
+        Connection targetDBConnection = getTargetDBConnection();
+        Connection sourcedbConnection = getSourceDBConnection();
+        
+        for (String table : syncTables) {
+            try {
+                
+                preparedStatement = targetDBConnection.prepareStatement("CREATE TABLE IF NOT EXISTS " + targetDatabaseName+"."+table + "_SYNCD_ID (" +
+                        " SYCD_ID INT"+
+                        ") ENGINE=InnoDB DEFAULT CHARSET=latin1;");
                 preparedStatement.execute();
+
+            } catch (SQLException e) {
+                e.printStackTrace();
             }
+        }
 
-            while (true) {
-                for (String table : syncTables) {
+        int targetDBSyncdId;
+        int sourceDBMaxSyncId;
+        int nextSyncId;
+        String primerykey;
 
-                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
-                            + sourceDatabaseName + "." + table + "_SYNC_VERSION");
-                    resultSet.next();
-                    String syncVersion = resultSet.getString(SYNC_VERSION);
+        while(true){
+            for (String table : syncTables) {
+                try {
+                    targetDBSyncdId =0;
+                    sourceDBMaxSyncId =0;
+                    nextSyncId = 0;
 
-                    if (null != syncVersion) {
 
-                        resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_VERSION FROM"
-                                + targetDatabaseName + "." + table + "_SYNC_VERSION");
+                    primerykey =null;
+
+                    resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYCD_ID FROM " + targetDatabaseName + "." + table + "_SYNCD_ID;");
+                    //resultSet.next();
+
+                    if (resultSet.next()) {
+                        targetDBSyncdId = resultSet.getInt("SYCD_ID");
+                        if (resultSet.wasNull()) {
+                            // handle NULL field value
+                        }
+                    }
+
+                    resultSet = sourcedbConnection.createStatement().executeQuery("SELECT MAX(SYC_ID) FROM " + sourceDatabaseName + "." + table + "_SYNC;");
+
+                    if (resultSet.next()) {
+                        sourceDBMaxSyncId = resultSet.getInt("MAX(SYC_ID)");
+                        if (resultSet.wasNull()) {
+                            // handle NULL field value
+                        }
+                    }
+
+                    if (sourceDBMaxSyncId > targetDBSyncdId){
+
+                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT SYC_ID FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID > "+targetDBSyncdId+" ORDER BY SYC_ID LIMIT 1;");
+
+                        if (resultSet.next()) {
+                            nextSyncId = resultSet.getInt("SYC_ID");
+                            if (resultSet.wasNull()) {
+                                // handle NULL field value
+                            }
+                        }
+
+
+                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"+sourceDatabaseName+"' AND TABLE_NAME = '" + table + "' LIMIT 1;");
                         resultSet.next();
+
+                        String primeryCol = resultSet.getString(COLUMN_NAME);
+
+                        resultSet = sourcedbConnection.createStatement().executeQuery("SELECT SYC_ID," +primeryCol+ " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYC_ID = "+nextSyncId+";");
+
+                        if (resultSet.next()) {
+                            primerykey = resultSet.getString(primeryCol);
+                            if (resultSet.wasNull()) {
+                                // handle NULL field value
+                            }
+                        }
+
+                        resultSet =  sourcedbConnection.createStatement().executeQuery("SELECT * FROM " + sourceDatabaseName + "." + table +" WHERE "+primeryCol+" = '"+primerykey+"';");
+                        resultSet.next();
+
+
+                        ResultSetMetaData meta = resultSet.getMetaData();
+
+
+                        StringBuilder columnNames = new StringBuilder();
+                        StringBuilder bindVariables = new StringBuilder();
+
+                        for (int i = 1; i <= meta.getColumnCount(); i++) {
+                            if (i > 1) {
+                                columnNames.append(", ");
+                                bindVariables.append(", ");
+                            }
+
+                            columnNames.append(meta.getColumnName(i));
+                            bindVariables.append('?');
+                            rowValues.add(resultSet.getObject(meta.getColumnName(i)));
+
+
+                        }
+
+                        String sql = "REPLACE INTO " + targetDatabaseName + "." + table + " ("
+                                + columnNames
+                                + ") VALUES ("
+                                + bindVariables
+                                + ");";
+
+                        preparedStatement = targetDBConnection.prepareStatement(sql);
+
+                        for (int i=0; i<rowValues.size(); i++) {
+                            preparedStatement.setObject(i+1,rowValues.get(i));
+
+                        }
+
+                        preparedStatement.execute();
+
+                        preparedStatement = targetDBConnection.prepareStatement("update " + targetDatabaseName + "." + table + "_SYNCD_ID SET SYCD_ID = "+nextSyncId+" WHERE SYCD_ID = "+targetDBSyncdId+";");
+
+                        preparedStatement.execute();
+
+                        rowValues.clear();
+
+                    }
+
+
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+
+                    if (null != resultSet) {
+                        try {
+                            resultSet.close();
+                        } catch (SQLException ignored) {
+                        }
                     }
                 }
             }
-        } catch (SQLException e) {
 
-            log.error("Error occurred while executing SQL", e);
-        } finally {
-
-            if (null != resultSet) {
-                try {
-                    resultSet.close();
-                } catch (SQLException ignored) {
-                }
-            }
         }
     }
 
