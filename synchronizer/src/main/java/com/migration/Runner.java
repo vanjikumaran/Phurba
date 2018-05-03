@@ -42,10 +42,6 @@ public class Runner {
     private static String targetDatabaseName;
     private static String[] syncTables;
 
-    private static Statement statement;
-    private static ResultSet resultSet;
-    private static PreparedStatement preparedStatement;
-
     private static Logger log = LogManager.getLogger(Runner.class);
 
     /**
@@ -81,7 +77,7 @@ public class Runner {
         if (1 == args.length) {
 
             log.info("No optional arguments passed. Reading from config file...");
-            if (!getConfigFromFile()){
+            if (!getConfigFromFile()) {
                 log.info("Error occurred while reading config file...");
                 return;
             }
@@ -215,6 +211,9 @@ public class Runner {
     }
 
     private static void startSyncLog() {
+        Statement statement = null;
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
 
         try (Connection dbConnection = getSourceDBConnection()) {
 
@@ -295,6 +294,9 @@ public class Runner {
 
     private static void startSyncProcess() {
 
+        ResultSet resultSet = null;
+        PreparedStatement preparedStatement = null;
+
         try (Connection targetDBConnection = getTargetDBConnection()) {
 
             for (String table : syncTables) {
@@ -338,6 +340,8 @@ public class Runner {
 
     private static void deleteSyncLog() {
 
+        PreparedStatement preparedStatement = null;
+
         try (Connection dbConnection = getSourceDBConnection()) {
 
             for (String table : syncTables) {
@@ -371,6 +375,8 @@ public class Runner {
     }
 
     private static void stopSyncLog() {
+
+        PreparedStatement preparedStatement = null;
 
         try (Connection dbConnection = getSourceDBConnection()) {
 
