@@ -330,25 +330,25 @@ public class Runner {
             }
         }
 
-        int targetDBSyncId;
+        int targetDBSyncVersion;
         int sourceDBMaxSyncId;
         int nextSyncId;
-        String primeryKey;
+        String primaryKey;
 
         while (true) {
             for (String table : syncTables) {
                 try {
-                    targetDBSyncId = 0;
+                    targetDBSyncVersion = 0;
                     sourceDBMaxSyncId = 0;
                     nextSyncId = 0;
 
-                    primeryKey = null;
+                    primaryKey = null;
 
                     resultSet = targetDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM "
                             + targetDatabaseName + "." + table + "_SYNC_VERSION;");
 
                     if (resultSet.next()) {
-                        targetDBSyncId = resultSet.getInt("SYNC_ID");
+                        targetDBSyncVersion = resultSet.getInt("SYNC_ID");
                         if (resultSet.wasNull()) {
                             // handle NULL field value
                         }
@@ -364,10 +364,10 @@ public class Runner {
                         }
                     }
 
-                    if (sourceDBMaxSyncId > targetDBSyncId) {
+                    if (sourceDBMaxSyncId > targetDBSyncVersion) {
 
                         resultSet = sourceDBConnection.createStatement().executeQuery("SELECT SYNC_ID FROM "
-                                + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID > " + targetDBSyncId
+                                + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID > " + targetDBSyncVersion
                                 + " ORDER BY SYNC_ID LIMIT 1;");
 
                         if (resultSet.next()) {
@@ -389,14 +389,14 @@ public class Runner {
                                 + nextSyncId + ";");
 
                         if (resultSet.next()) {
-                            primeryKey = resultSet.getString(primeryCol);
+                            primaryKey = resultSet.getString(primeryCol);
                             if (resultSet.wasNull()) {
                                 // handle NULL field value
                             }
                         }
 
                         resultSet = sourceDBConnection.createStatement().executeQuery("SELECT * FROM "
-                                + sourceDatabaseName + "." + table + " WHERE " + primeryCol + " = '" + primeryKey + "';");
+                                + sourceDatabaseName + "." + table + " WHERE " + primeryCol + " = '" + primaryKey + "';");
                         resultSet.next();
 
                         ResultSetMetaData meta = resultSet.getMetaData();
@@ -432,7 +432,7 @@ public class Runner {
 
                         preparedStatement = targetDBConnection.prepareStatement("update " + targetDatabaseName
                                 + "." + table + "_SYNC_VERSION SET SYNC_ID = " + nextSyncId + " WHERE SYNC_ID = "
-                                + targetDBSyncId + ";");
+                                + targetDBSyncVersion + ";");
 
                         preparedStatement.execute();
 
