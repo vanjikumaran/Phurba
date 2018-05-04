@@ -29,9 +29,9 @@ public class Runner {
     private static final String TARGET_DB_PASSWORD = "target.db.password";
     private static final String TARGET_DB_NAME = "target.db.name";
     private static final String SYNC_TABLES = "sync.tables";
+    private static final String BATCH_SIZE = "batch.size";
     private static final String COLUMN_NAME = "COLUMN_NAME";
     private static final String COLUMN_TYPE = "COLUMN_TYPE";
-    private static final String BATCH_SIZE = "BATCH_SIZE";
     private static final String SYNC_VERSION = "SYNC_VERSION";
 
     private static String sourceDatabaseHost;
@@ -231,6 +231,8 @@ public class Runner {
 
             for (String table : syncTables) {
 
+                String sourceTable = sourceDatabaseName + "." + table;
+
                 statement = dbConnection.createStatement();
                 query = "SELECT COLUMN_NAME,COLUMN_TYPE FROM information_schema.COLUMNS WHERE "
                         + "COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '" + sourceDatabaseName
@@ -242,19 +244,19 @@ public class Runner {
                 String primeryCol = resultSet.getString(COLUMN_NAME);
                 String primeryColType = resultSet.getString(COLUMN_TYPE);
 
-                query = "DROP TABLE IF EXISTS " + sourceDatabaseName + "." + table + "_SYNC;";
+                query = "DROP TABLE IF EXISTS " + sourceTable + "_SYNC;";
                 preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
                 log.info(String.format("Query: [%s] ", query));
 
-                query = "CREATE TABLE " + sourceDatabaseName + "." + table + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
+                query = "CREATE TABLE " + sourceTable + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
                         " " + primeryCol + " " + primeryColType + " NOT NULL, PRIMARY KEY (SYNC_ID)" +
                         ") ENGINE=InnoDB DEFAULT CHARSET=latin1;";
                 preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
                 log.info(String.format("Query: [%s] ", query));
 
-                query = "INSERT INTO " + sourceDatabaseName + "." + table + "_SYNC (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM " + sourceDatabaseName + "." + table + "_SYNC);";
+                query = "INSERT INTO " + sourceTable + "_SYNC (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM " + sourceTable + "_SYNC);";
                 preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
                 log.info(String.format("Query: [%s] ", query));
@@ -270,9 +272,9 @@ public class Runner {
                 log.info(String.format("Query: [%s] ", query));
 
                 query = "CREATE TRIGGER " + table + "_SYNC_INSERT_TRIGGER BEFORE INSERT " +
-                        "ON " + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
+                        "ON " + sourceTable + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
-                        sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
+                        sourceTable + "_SYNC(" + primeryCol + ") " +
                         "VALUES(NEW." + primeryCol + "); " +
                         "END;";
                 preparedStatement = dbConnection.prepareStatement(query);
@@ -280,9 +282,9 @@ public class Runner {
                 log.info(String.format("Query: [%s] ", query));
 
                 query = "CREATE TRIGGER " + table + "_SYNC_UPDATE_TRIGGER BEFORE UPDATE " +
-                        "ON " + sourceDatabaseName + "." + table + " FOR EACH ROW BEGIN INSERT " +
+                        "ON " + sourceTable + " FOR EACH ROW BEGIN INSERT " +
                         "INTO " +
-                        sourceDatabaseName + "." + table + "_SYNC(" + primeryCol + ") " +
+                        sourceTable + "_SYNC(" + primeryCol + ") " +
                         "VALUES(NEW." + primeryCol + "); " +
                         "END;";
                 preparedStatement = dbConnection.prepareStatement(query);
@@ -353,13 +355,16 @@ public class Runner {
         while (true) {
             for (String table : syncTables) {
                 try {
+                    String sourceTable = sourceDatabaseName + "." + table;
+                    String targetTable = targetDatabaseName + "." + table;
+
                     targetDBSyncVersion = 0;
                     sourceDBMaxSyncId = 0;
                     nextSyncId = 0;
                     untilSyncId = 0;
 
 
-                    query = "SELECT SYNC_ID FROM " + targetDatabaseName + "." + table + "_SYNC_VERSION;";
+                    query = "SELECT SYNC_ID FROM " + targetTable + "_SYNC_VERSION;";
                     resultSet = targetDBConnection.createStatement().executeQuery(query);
                     log.info(String.format("Query: [%s] ", query));
 
@@ -372,7 +377,7 @@ public class Runner {
                     }
 
                     resultSet = sourceDBConnection.createStatement().executeQuery("SELECT MAX(SYNC_ID) FROM "
-                            + sourceDatabaseName + "." + table + "_SYNC;");
+                            + sourceTable + "_SYNC;");
 
                     if (resultSet.next()) {
                         sourceDBMaxSyncId = resultSet.getInt("MAX(SYNC_ID)");
@@ -387,7 +392,7 @@ public class Runner {
                                 sourceDBMaxSyncId - targetDBSyncVersion));
 
                         query = "SELECT SYNC_ID FROM "
-                                + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID > " + targetDBSyncVersion
+                                + sourceTable + "_SYNC WHERE SYNC_ID > " + targetDBSyncVersion
                                 + " ORDER BY SYNC_ID LIMIT 1;";
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
                         log.info(String.format("Query: [%s] ", query));
@@ -524,16 +529,18 @@ public class Runner {
 
             for (String table : syncTables) {
 
+                String targetTable = targetDatabaseName + "." + table;
+
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
-                        + targetDatabaseName + "." + table + "_SYNC_INSERT_TRIGGER");
+                        + targetTable + "_SYNC_INSERT_TRIGGER");
                 preparedStatement.execute();
 
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
-                        + targetDatabaseName + "." + table + "_SYNC_UPDATE_TRIGGER");
+                        + targetTable + "_SYNC_UPDATE_TRIGGER");
                 preparedStatement.execute();
 
                 preparedStatement = dbConnection.prepareStatement("DROP TABLE IF EXISTS "
-                        + targetDatabaseName + "." + table + "_SYNC");
+                        + targetTable + "_SYNC");
                 preparedStatement.execute();
 
 
@@ -565,12 +572,14 @@ public class Runner {
 
             for (String table : syncTables) {
 
+                String targetTable = targetDatabaseName + "." + table;
+
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
-                        + targetDatabaseName + "." + table + "_SYNC_INSERT_TRIGGER");
+                        + targetTable + "_SYNC_INSERT_TRIGGER");
                 preparedStatement.execute();
 
                 preparedStatement = dbConnection.prepareStatement("DROP TRIGGER IF EXISTS "
-                        + targetDatabaseName + "." + table + "_SYNC_UPDATE_TRIGGER");
+                        + targetTable + "_SYNC_UPDATE_TRIGGER");
                 preparedStatement.execute();
             }
         } catch (SQLException e) {
