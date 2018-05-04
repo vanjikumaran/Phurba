@@ -7,7 +7,6 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.sql.*;
-import java.util.ArrayList;
 
 /**
  * Runs different commands related to synchronization of database
@@ -200,6 +199,9 @@ public class Runner {
                         case TARGET_DB_NAME:
                             targetDatabaseName = value;
                             break;
+                        case BATCH_SIZE:
+                            batchSize = value;
+                            break;
                         case SYNC_TABLES:
                             syncTables = value.split(",");
                             break;
@@ -252,11 +254,6 @@ public class Runner {
                 query = "CREATE TABLE " + sourceTable + "_SYNC ( SYNC_ID INT NOT NULL AUTO_INCREMENT," +
                         " " + primeryCol + " " + primeryColType + " NOT NULL, PRIMARY KEY (SYNC_ID)" +
                         ") ENGINE=InnoDB DEFAULT CHARSET=latin1;";
-                preparedStatement = dbConnection.prepareStatement(query);
-                preparedStatement.execute();
-                log.info(String.format("Query: [%s] ", query));
-
-                query = "INSERT INTO " + sourceTable + "_SYNC (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM " + sourceTable + "_SYNC);";
                 preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
                 log.info(String.format("Query: [%s] ", query));
@@ -350,8 +347,7 @@ public class Runner {
         int sourceDBMaxSyncId;
         int nextSyncId;
         int untilSyncId;
-
-
+        
         while (true) {
             for (String table : syncTables) {
                 try {
@@ -419,7 +415,7 @@ public class Runner {
 
                         String primaryCol = resultSet.getString(COLUMN_NAME);
 
-                        query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceDatabaseName + "." + table + "_SYNC AS T1 LEFT JOIN " + sourceDatabaseName + "." + table + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > "+nextSyncId+" LIMIT " + batchSize + ") x;";
+                        query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceDatabaseName + "." + table + "_SYNC AS T1 LEFT JOIN " + sourceDatabaseName + "." + table + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > " + nextSyncId + " LIMIT " + batchSize + ") x;";
 
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
@@ -432,7 +428,7 @@ public class Runner {
                             }
                         }
 
-                        query ="SELECT * FROM " + sourceDatabaseName + "." + table + " WHERE " + primaryCol + " in (SELECT DISTINCT " + primaryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID >" + nextSyncId + " AND SYNC_ID <=" + untilSyncId + ");";
+                        query = "SELECT * FROM " + sourceDatabaseName + "." + table + " WHERE " + primaryCol + " in (SELECT DISTINCT " + primaryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID >" + nextSyncId + " AND SYNC_ID <=" + untilSyncId + ");";
 
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
@@ -480,11 +476,8 @@ public class Runner {
                             preparedStatement = targetDBConnection.prepareStatement(query);
                             preparedStatement.execute();
                             log.info(String.format("Query: [%s] ", query));
-                        }
-                        else
-                        {
+                        } else {
                             log.error(String.format("Batch update fail"));
-
                         }
                     }
 
@@ -510,14 +503,12 @@ public class Runner {
     }
 
     public static void checkUpdateCounts(int[] updateCounts) {
-        for (int i=0; i<updateCounts.length; i++) {
+        for (int i = 0; i < updateCounts.length; i++) {
             if (updateCounts[i] >= 0) {
-                log.info("OK; updateCount="+updateCounts[i]);
-            }
-            else if (updateCounts[i] == Statement.SUCCESS_NO_INFO) {
+                log.info("OK; updateCount=" + updateCounts[i]);
+            } else if (updateCounts[i] == Statement.SUCCESS_NO_INFO) {
                 log.info("OK; updateCount=Statement.SUCCESS_NO_INFO");
-            }
-            else if (updateCounts[i] == Statement.EXECUTE_FAILED) {
+            } else if (updateCounts[i] == Statement.EXECUTE_FAILED) {
                 log.error("Failure; updateCount=Statement.EXECUTE_FAILED");
             }
         }
