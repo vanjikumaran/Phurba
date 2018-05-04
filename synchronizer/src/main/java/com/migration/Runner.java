@@ -427,7 +427,7 @@ public class Runner {
                             }
                         }
 
-                        query ="SELECT * FROM " + sourceDatabaseName + "." + table + " WHERE " + primaryCol + " in (SELECT " + primaryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID >" + nextSyncId + " AND SYNC_ID <=" + untilSyncId + ");";
+                        query ="SELECT * FROM " + sourceDatabaseName + "." + table + " WHERE " + primaryCol + " in (SELECT DISTINCT " + primaryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID >" + nextSyncId + " AND SYNC_ID <=" + untilSyncId + ");";
 
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
