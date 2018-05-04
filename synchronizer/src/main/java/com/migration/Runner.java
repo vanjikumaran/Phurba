@@ -473,12 +473,19 @@ public class Runner {
                         checkUpdateCounts(updateCounts);
                         //preparedStatement.execute();
 
-                        query = "UPDATE " + targetDatabaseName
-                                + "." + table + "_SYNC_VERSION SET SYNC_ID = " + untilSyncId + " WHERE SYNC_ID = "
-                                + targetDBSyncVersion + ";";
-                        preparedStatement = targetDBConnection.prepareStatement(query);
-                        preparedStatement.execute();
-                        log.info(String.format("Query: [%s] ", query));
+                        if (updateCounts.length == Integer.parseInt(batchSize)) {
+                            query = "UPDATE " + targetDatabaseName
+                                    + "." + table + "_SYNC_VERSION SET SYNC_ID = " + untilSyncId + " WHERE SYNC_ID = "
+                                    + targetDBSyncVersion + ";";
+                            preparedStatement = targetDBConnection.prepareStatement(query);
+                            preparedStatement.execute();
+                            log.info(String.format("Query: [%s] ", query));
+                        }
+                        else
+                        {
+                            log.error(String.format("Batch update fail"));
+
+                        }
                     }
 
                 } catch (SQLException e) {
