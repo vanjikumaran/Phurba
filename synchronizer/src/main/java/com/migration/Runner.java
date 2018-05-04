@@ -31,6 +31,7 @@ public class Runner {
     private static final String SYNC_TABLES = "sync.tables";
     private static final String COLUMN_NAME = "COLUMN_NAME";
     private static final String COLUMN_TYPE = "COLUMN_TYPE";
+    private static final String BATCH_SIZE = "BATCH_SIZE";
     private static final String SYNC_VERSION = "SYNC_VERSION";
 
     private static String sourceDatabaseHost;
@@ -41,6 +42,7 @@ public class Runner {
     private static String targetDatabaseUser;
     private static String targetDatabasePassword;
     private static String targetDatabaseName;
+    private static String batchSize;
     private static String[] syncTables;
 
     private static Logger log = LogManager.getLogger(Runner.class);
@@ -137,6 +139,9 @@ public class Runner {
                         break;
                     case TARGET_DB_NAME:
                         targetDatabaseName = args[i + 1];
+                        break;
+                    case BATCH_SIZE:
+                        batchSize = args[i + 1];
                         break;
                     case SYNC_TABLES:
                         syncTables = args[i + 1].split(",");
@@ -249,6 +254,11 @@ public class Runner {
                 preparedStatement.execute();
                 log.info(String.format("Query: [%s] ", query));
 
+                query = "INSERT INTO " + sourceDatabaseName + "." + table + "_SYNC (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM " + sourceDatabaseName + "." + table + "_SYNC);";
+                preparedStatement = dbConnection.prepareStatement(query);
+                preparedStatement.execute();
+                log.info(String.format("Query: [%s] ", query));
+
                 query = "DROP TRIGGER IF EXISTS " + table + "_SYNC_INSERT_TRIGGER;";
                 preparedStatement = dbConnection.prepareStatement(query);
                 preparedStatement.execute();
@@ -309,7 +319,6 @@ public class Runner {
 
         ResultSet resultSet = null;
         PreparedStatement preparedStatement = null;
-        ArrayList<Object> rowValues = new ArrayList<>();
 
         Connection targetDBConnection = getTargetDBConnection();
         Connection sourceDBConnection = getSourceDBConnection();
@@ -325,6 +334,11 @@ public class Runner {
                 preparedStatement.execute();
                 log.info(String.format("Query: [%s] ", query));
 
+                query = "INSERT INTO " + targetDatabaseName + "." + table + "_SYNC_VERSION (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM " + targetDatabaseName + "." + table + "_SYNC_VERSION);";
+                preparedStatement = targetDBConnection.prepareStatement(query);
+                preparedStatement.execute();
+                log.info(String.format("Query: [%s] ", query));
+
             } catch (SQLException e) {
                 log.error("Error occurred while executing SQL", e);
             }
@@ -333,7 +347,8 @@ public class Runner {
         int targetDBSyncVersion;
         int sourceDBMaxSyncId;
         int nextSyncId;
-        String primaryKey;
+        int untilSyncId;
+
 
         while (true) {
             for (String table : syncTables) {
@@ -341,8 +356,8 @@ public class Runner {
                     targetDBSyncVersion = 0;
                     sourceDBMaxSyncId = 0;
                     nextSyncId = 0;
+                    untilSyncId = 0;
 
-                    primaryKey = null;
 
                     query = "SELECT SYNC_ID FROM " + targetDatabaseName + "." + table + "_SYNC_VERSION;";
                     resultSet = targetDBConnection.createStatement().executeQuery(query);
@@ -354,12 +369,6 @@ public class Runner {
                         if (resultSet.wasNull()) {
                             // handle NULL field value
                         }
-                    } else {
-
-                        query = "INSERT INTO " + targetDatabaseName + "." + table + "_SYNC_VERSION VALUES(0);";
-                        preparedStatement = targetDBConnection.prepareStatement(query);
-                        preparedStatement.execute();
-                        log.info(String.format("Query: [%s] ", query));
                     }
 
                     resultSet = sourceDBConnection.createStatement().executeQuery("SELECT MAX(SYNC_ID) FROM "
@@ -405,23 +414,24 @@ public class Runner {
 
                         String primaryCol = resultSet.getString(COLUMN_NAME);
 
-                        query = "SELECT SYNC_ID,"
-                                + primaryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID = "
-                                + nextSyncId + ";";
+                        query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceDatabaseName + "." + table + "_SYNC AS T1 LEFT JOIN " + sourceDatabaseName + "." + table + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > "+nextSyncId+" LIMIT " + batchSize + ") x;";
+
+
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
                         log.info(String.format("Query: [%s] ", query));
 
                         if (resultSet.next()) {
-                            primaryKey = resultSet.getString(primaryCol);
+                            untilSyncId = resultSet.getInt("MAX(SYNC_ID)");
                             if (resultSet.wasNull()) {
                                 // handle NULL field value
                             }
                         }
 
-                        query = "SELECT * FROM "
-                                + sourceDatabaseName + "." + table + " WHERE " + primaryCol + " = '" + primaryKey + "';";
+                        query ="SELECT * FROM " + sourceDatabaseName + "." + table + " WHERE " + primaryCol + " in (SELECT " + primaryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID >" + nextSyncId + " AND SYNC_ID <=" + untilSyncId + ");";
+
+
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                        resultSet.next();
+
                         log.info(String.format("Query: [%s] ", query));
 
                         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
@@ -437,7 +447,6 @@ public class Runner {
 
                             columnNames.append(resultSetMetaData.getColumnName(i));
                             bindVariables.append('?');
-                            rowValues.add(resultSet.getObject(resultSetMetaData.getColumnName(i)));
                         }
 
                         query = "REPLACE INTO " + targetDatabaseName + "." + table + " ("
@@ -448,24 +457,23 @@ public class Runner {
 
                         preparedStatement = targetDBConnection.prepareStatement(query);
 
-                        for (int i = 0; i < rowValues.size(); i++) {
-
-                            if (null != rowValues.get(i))
-                                log.info(rowValues.get(i).toString());
-
-                            preparedStatement.setObject(i + 1, rowValues.get(i));
+                        while (resultSet.next()) {
+                            for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+                                preparedStatement.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
+                            }
+                            preparedStatement.addBatch();
                         }
 
-                        preparedStatement.execute();
+                        int[] updateCounts = preparedStatement.executeBatch();
+                        checkUpdateCounts(updateCounts);
+                        //preparedStatement.execute();
 
                         query = "UPDATE " + targetDatabaseName
-                                + "." + table + "_SYNC_VERSION SET SYNC_ID = " + nextSyncId + " WHERE SYNC_ID = "
+                                + "." + table + "_SYNC_VERSION SET SYNC_ID = " + untilSyncId + " WHERE SYNC_ID = "
                                 + targetDBSyncVersion + ";";
                         preparedStatement = targetDBConnection.prepareStatement(query);
                         preparedStatement.execute();
                         log.info(String.format("Query: [%s] ", query));
-
-                        rowValues.clear();
                     }
 
                 } catch (SQLException e) {
@@ -485,6 +493,20 @@ public class Runner {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    public static void checkUpdateCounts(int[] updateCounts) {
+        for (int i=0; i<updateCounts.length; i++) {
+            if (updateCounts[i] >= 0) {
+                log.info("OK; updateCount="+updateCounts[i]);
+            }
+            else if (updateCounts[i] == Statement.SUCCESS_NO_INFO) {
+                log.info("OK; updateCount=Statement.SUCCESS_NO_INFO");
+            }
+            else if (updateCounts[i] == Statement.EXECUTE_FAILED) {
+                log.error("Failure; updateCount=Statement.EXECUTE_FAILED");
             }
         }
     }
