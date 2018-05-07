@@ -7,6 +7,7 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.sql.*;
+import java.util.ArrayList;
 
 /**
  * Runs different commands related to synchronization of database
@@ -333,7 +334,7 @@ public class Runner {
                         " SYNC_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;";
                 preparedStatement = targetDBConnection.prepareStatement(query);
                 preparedStatement.execute();
-                log.info(String.format("Query: Create _SYNC_VERSION table: [%s] ", query));
+                log.info(String.format("Query: Create table for sync version at target database: [%s] ", query));
 
                 query = "INSERT INTO " + targetTable + "_SYNC_VERSION (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM "
                         + targetTable + "_SYNC_VERSION);";
@@ -348,8 +349,8 @@ public class Runner {
 
         int targetDBSyncVersion;
         int sourceDBMaxSyncId;
-        int nextSyncId;
-        int untilSyncId;
+        int startingSyncId;
+        int endingSyncId;
 
         while (true) {
             for (String table : syncTables) {
@@ -359,8 +360,8 @@ public class Runner {
 
                     targetDBSyncVersion = 0;
                     sourceDBMaxSyncId = 0;
-                    nextSyncId = 0;
-                    untilSyncId = 0;
+                    startingSyncId = 0;
+                    endingSyncId = 0;
 
                     query = "SELECT SYNC_ID FROM " + targetTable + "_SYNC_VERSION;";
                     resultSet = targetDBConnection.createStatement().executeQuery(query);
@@ -370,7 +371,7 @@ public class Runner {
 
                         targetDBSyncVersion = resultSet.getInt("SYNC_ID");
                         if (resultSet.wasNull()) {
-                            log.error(String.format("Sync version returned from target is null: Query: [%s] ", query));
+                            log.warn(String.format("Sync version returned from target is null: Query: [%s] ", query));
                         }
                     }
 
@@ -382,10 +383,15 @@ public class Runner {
                         sourceDBMaxSyncId = resultSet.getInt("MAX(SYNC_ID)");
 
                         if (resultSet.wasNull()) {
-                            log.error(String.format("Sync id returned is null: Query : [%s] ", query));
+                            log.warn(String.format("Sync id returned is null: Query : [%s] ", query));
+                            continue;
                         }
                     }
-                    if (sourceDBMaxSyncId > targetDBSyncVersion) {
+                    if (sourceDBMaxSyncId == targetDBSyncVersion) {
+
+                        log.info(String.format("[SYNC ACHIEVED] Data is synchronized at sync id [%s]", targetDBSyncVersion));
+
+                    } else if (sourceDBMaxSyncId > targetDBSyncVersion) {
 
                         log.info(String.format("Data available for synchronization, table [%s], count [%s] ", table,
                                 sourceDBMaxSyncId - targetDBSyncVersion));
@@ -397,7 +403,7 @@ public class Runner {
                         log.info(String.format("Query: Retrieve next sync id to be started, from source: [%s] ", query));
 
                         if (resultSet.next()) {
-                            nextSyncId = resultSet.getInt("SYNC_ID");
+                            startingSyncId = resultSet.getInt("SYNC_ID");
                             if (resultSet.wasNull()) {
                                 log.error(String.format("Sync version returned from target is null: Query: [%s] ", query));
                             }
@@ -406,7 +412,7 @@ public class Runner {
                         log.info(String.format("Sync version:target db [%s], " +
                                 "Maximum sync id:source db [%s], " +
                                 "Next sync id:source db [%s], " +
-                                "table [%s]", targetDBSyncVersion, sourceDBMaxSyncId, nextSyncId, table));
+                                "table [%s]", targetDBSyncVersion, sourceDBMaxSyncId, startingSyncId, table));
 
                         query = "SELECT COLUMN_NAME FROM " +
                                 "information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"
@@ -420,21 +426,21 @@ public class Runner {
                         query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceTable + "_SYNC AS T1 LEFT JOIN "
                                 + sourceTable + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol
                                 + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > "
-                                + nextSyncId + " LIMIT " + batchSize + ") x;";
+                                + startingSyncId + " LIMIT " + batchSize + ") x;";
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
                         log.info(String.format("Query: Retrieve max sync id from source [%s] ", query));
 
                         if (resultSet.next()) {
-                            untilSyncId = resultSet.getInt("MAX(SYNC_ID)");
+                            endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
                             if (resultSet.wasNull()) {
                                 log.error(String.format("Max sync id returned from source is null: Query: [%s] ", query));
                             }
                         }
 
                         query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " in (SELECT DISTINCT "
-                                + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >" + nextSyncId
-                                + " AND SYNC_ID <=" + untilSyncId + ");";
+                                + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >" + startingSyncId
+                                + " AND SYNC_ID <=" + endingSyncId + ");";
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
 
@@ -470,19 +476,19 @@ public class Runner {
                             preparedStatement.addBatch();
                         }
 
-                        int[] updateCounts = preparedStatement.executeBatch();
-                        checkUpdateCounts(updateCounts);
+                        int[] updateResults = preparedStatement.executeBatch();
+                        logUpdateResults(updateResults);
 
-                        if (updateCounts.length == Integer.parseInt(batchSize)) {
+                        if (updateResults.length == Integer.parseInt(batchSize)) {
 
-                            query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + untilSyncId
+                            query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
                                     + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
                             preparedStatement = targetDBConnection.prepareStatement(query);
                             preparedStatement.execute();
                             log.info(String.format("Query: Batch update in target database: [%s] ", query));
                         } else {
 
-                            log.error(String.format("Batch update fail"));
+                            log.error(String.format("Batch update failed: Query: [%s] ", query));
                         }
                     }
 
@@ -507,15 +513,26 @@ public class Runner {
         }
     }
 
-    public static void checkUpdateCounts(int[] updateCounts) {
-        for (int i = 0; i < updateCounts.length; i++) {
-            if (updateCounts[i] >= 0) {
-                log.info("OK; updateCount=" + updateCounts[i]);
-            } else if (updateCounts[i] == Statement.SUCCESS_NO_INFO) {
-                log.info("OK; updateCount=Statement.SUCCESS_NO_INFO");
-            } else if (updateCounts[i] == Statement.EXECUTE_FAILED) {
-                log.error("Failure; updateCount=Statement.EXECUTE_FAILED");
+    public static void logUpdateResults(int[] updateResults) {
+
+        ArrayList<Integer> failedUpdates = new ArrayList<>();
+        boolean updateSuccess = true;
+
+        for (int updateResult : updateResults) {
+            if (updateResult == Statement.EXECUTE_FAILED) {
+
+                updateSuccess = false;
+                failedUpdates.add(updateResult);
             }
+        }
+        if (updateSuccess) {
+            log.info("Batch update is successful for all the entries");
+        } else {
+            log.error("Batch update is failed for some entries");
+        }
+        for (int failedUpdate : failedUpdates) {
+
+            log.error(String.format("Indexes of failed updates: [%s] ", failedUpdate));
         }
     }
 
