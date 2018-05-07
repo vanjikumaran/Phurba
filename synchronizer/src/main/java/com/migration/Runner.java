@@ -439,7 +439,7 @@ public class Runner {
                         }
 
                         query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " in (SELECT DISTINCT "
-                                + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >" + startingSyncId
+                                + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >=" + startingSyncId
                                 + " AND SYNC_ID <=" + endingSyncId + ");";
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
@@ -488,7 +488,8 @@ public class Runner {
                             log.info(String.format("Query: Batch update in target database: [%s] ", query));
                         } else {
 
-                            log.error(String.format("Batch update failed: Query: [%s] ", query));
+                            log.error(String.format("Batch was different than configured batch size: Batch [%s]," +
+                                    " Configured batch size [%s]", updateResults.length, batchSize));
                         }
                     }
 
