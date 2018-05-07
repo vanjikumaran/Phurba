@@ -323,24 +323,26 @@ public class Runner {
         Connection targetDBConnection = getTargetDBConnection();
         Connection sourceDBConnection = getSourceDBConnection();
 
-        String query;
+        String query = null;
 
         for (String table : syncTables) {
             try {
+                String targetTable = targetDatabaseName + "." + table;
 
-                query = "CREATE TABLE IF NOT EXISTS " + targetDatabaseName + "." + table + "_SYNC_VERSION (" +
+                query = "CREATE TABLE IF NOT EXISTS " + targetTable + "_SYNC_VERSION (" +
                         " SYNC_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;";
                 preparedStatement = targetDBConnection.prepareStatement(query);
                 preparedStatement.execute();
-                log.info(String.format("Query: [%s] ", query));
+                log.info(String.format("Query: Create _SYNC_VERSION table: [%s] ", query));
 
-                query = "INSERT INTO " + targetDatabaseName + "." + table + "_SYNC_VERSION (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM " + targetDatabaseName + "." + table + "_SYNC_VERSION);";
+                query = "INSERT INTO " + targetTable + "_SYNC_VERSION (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM "
+                        + targetTable + "_SYNC_VERSION);";
                 preparedStatement = targetDBConnection.prepareStatement(query);
                 preparedStatement.execute();
-                log.info(String.format("Query: [%s] ", query));
+                log.info(String.format("Query: Insert 0 if table is empty: [%s] ", query));
 
             } catch (SQLException e) {
-                log.error("Error occurred while executing SQL", e);
+                log.error(String.format("Error occurred while executing SQL: Query : [%s] ", query), e);
             }
         }
 
@@ -360,27 +362,27 @@ public class Runner {
                     nextSyncId = 0;
                     untilSyncId = 0;
 
-
                     query = "SELECT SYNC_ID FROM " + targetTable + "_SYNC_VERSION;";
                     resultSet = targetDBConnection.createStatement().executeQuery(query);
-                    log.info(String.format("Query: [%s] ", query));
+                    log.info(String.format("Query: Retrieve last sync version from target: [%s] ", query));
 
                     if (resultSet.next()) {
 
                         targetDBSyncVersion = resultSet.getInt("SYNC_ID");
                         if (resultSet.wasNull()) {
-                            // handle NULL field value
+                            log.error(String.format("Sync version returned from target is null: Query: [%s] ", query));
                         }
                     }
 
-                    resultSet = sourceDBConnection.createStatement().executeQuery("SELECT MAX(SYNC_ID) FROM "
-                            + sourceTable + "_SYNC;");
+                    query = "SELECT MAX(SYNC_ID) FROM " + sourceTable + "_SYNC;";
+                    resultSet = sourceDBConnection.createStatement().executeQuery(query);
+                    log.info(String.format("Query: Retrieve source db max sync id: [%s] ", query));
 
                     if (resultSet.next()) {
                         sourceDBMaxSyncId = resultSet.getInt("MAX(SYNC_ID)");
 
                         if (resultSet.wasNull()) {
-                            // handle NULL field value
+                            log.error(String.format("Sync id returned is null: Query : [%s] ", query));
                         }
                     }
                     if (sourceDBMaxSyncId > targetDBSyncVersion) {
@@ -392,12 +394,12 @@ public class Runner {
                                 + sourceTable + "_SYNC WHERE SYNC_ID > " + targetDBSyncVersion
                                 + " ORDER BY SYNC_ID LIMIT 1;";
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                        log.info(String.format("Query: [%s] ", query));
+                        log.info(String.format("Query: Retrieve next sync id to be started, from source: [%s] ", query));
 
                         if (resultSet.next()) {
                             nextSyncId = resultSet.getInt("SYNC_ID");
                             if (resultSet.wasNull()) {
-                                // handle NULL field value
+                                log.error(String.format("Sync version returned from target is null: Query: [%s] ", query));
                             }
                         }
 
@@ -410,26 +412,23 @@ public class Runner {
                                 "information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"
                                 + sourceDatabaseName + "' AND TABLE_NAME = '" + table + "' LIMIT 1;";
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                        log.info(String.format("Query: [%s] ", query));
-
+                        log.info(String.format("Query: Retrieving primary key column name from source [%s] ", query));
                         resultSet.next();
 
                         String primaryCol = resultSet.getString(COLUMN_NAME);
 
-                        query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceDatabaseName + "."
-                                + table + "_SYNC AS T1 LEFT JOIN " + sourceTable
-                                + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol
+                        query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceTable + "_SYNC AS T1 LEFT JOIN "
+                                + sourceTable + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol
                                 + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > "
                                 + nextSyncId + " LIMIT " + batchSize + ") x;";
 
-
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                        log.info(String.format("Query: [%s] ", query));
+                        log.info(String.format("Query: Retrieve max sync id from source [%s] ", query));
 
                         if (resultSet.next()) {
                             untilSyncId = resultSet.getInt("MAX(SYNC_ID)");
                             if (resultSet.wasNull()) {
-                                // handle NULL field value
+                                log.error(String.format("Max sync id returned from source is null: Query: [%s] ", query));
                             }
                         }
 
@@ -437,10 +436,9 @@ public class Runner {
                                 + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >" + nextSyncId
                                 + " AND SYNC_ID <=" + untilSyncId + ");";
 
-
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
 
-                        log.info(String.format("Query: [%s] ", query));
+                        log.info(String.format("Query: Retrieve data to be synced from source database: [%s] ", query));
 
                         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
                         StringBuilder columnNames = new StringBuilder();
@@ -476,13 +474,14 @@ public class Runner {
                         checkUpdateCounts(updateCounts);
 
                         if (updateCounts.length == Integer.parseInt(batchSize)) {
-                            query = "UPDATE " + targetDatabaseName
-                                    + "." + table + "_SYNC_VERSION SET SYNC_ID = " + untilSyncId + " WHERE SYNC_ID = "
-                                    + targetDBSyncVersion + ";";
+
+                            query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + untilSyncId
+                                    + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
                             preparedStatement = targetDBConnection.prepareStatement(query);
                             preparedStatement.execute();
-                            log.info(String.format("Query: [%s] ", query));
+                            log.info(String.format("Query: Batch update in target database: [%s] ", query));
                         } else {
+
                             log.error(String.format("Batch update fail"));
                         }
                     }
