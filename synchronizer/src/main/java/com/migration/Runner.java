@@ -389,7 +389,8 @@ public class Runner {
                     }
                     if (sourceDBMaxSyncId == targetDBSyncVersion) {
 
-                        log.info(String.format("[SYNC ACHIEVED] Data is synchronized at sync id [%s]", targetDBSyncVersion));
+                        log.info(String.format("[SYNC ACHIEVED] Data is synchronized at sync id [%s], table [%s]",
+                                targetDBSyncVersion, table));
 
                     } else if (sourceDBMaxSyncId > targetDBSyncVersion) {
 
@@ -485,7 +486,7 @@ public class Runner {
                         if (updateResults.length != Integer.parseInt(batchSize)) {
 
                             log.warn(String.format("Batch was different than configured batch size: Batch [%s]," +
-                                    " Configured batch size [%s]", updateResults.length, batchSize));
+                                    " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
                         }
 
                         query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
