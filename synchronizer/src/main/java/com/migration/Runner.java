@@ -66,6 +66,7 @@ public class Runner {
      * target.db.password
      * target.db.name
      * sync.tables
+     * batch.size
      *
      * @param args command and configuration flags
      */
@@ -347,7 +348,7 @@ public class Runner {
         int sourceDBMaxSyncId;
         int nextSyncId;
         int untilSyncId;
-        
+
         while (true) {
             for (String table : syncTables) {
                 try {
@@ -415,7 +416,11 @@ public class Runner {
 
                         String primaryCol = resultSet.getString(COLUMN_NAME);
 
-                        query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceDatabaseName + "." + table + "_SYNC AS T1 LEFT JOIN " + sourceDatabaseName + "." + table + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > " + nextSyncId + " LIMIT " + batchSize + ") x;";
+                        query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceDatabaseName + "."
+                                + table + "_SYNC AS T1 LEFT JOIN " + sourceTable
+                                + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol
+                                + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > "
+                                + nextSyncId + " LIMIT " + batchSize + ") x;";
 
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
@@ -428,7 +433,9 @@ public class Runner {
                             }
                         }
 
-                        query = "SELECT * FROM " + sourceDatabaseName + "." + table + " WHERE " + primaryCol + " in (SELECT DISTINCT " + primaryCol + " FROM " + sourceDatabaseName + "." + table + "_SYNC WHERE SYNC_ID >" + nextSyncId + " AND SYNC_ID <=" + untilSyncId + ");";
+                        query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " in (SELECT DISTINCT "
+                                + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >" + nextSyncId
+                                + " AND SYNC_ID <=" + untilSyncId + ");";
 
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
@@ -450,7 +457,7 @@ public class Runner {
                             bindVariables.append('?');
                         }
 
-                        query = "REPLACE INTO " + targetDatabaseName + "." + table + " ("
+                        query = "REPLACE INTO " + targetTable + " ("
                                 + columnNames
                                 + ") VALUES ("
                                 + bindVariables
@@ -467,7 +474,6 @@ public class Runner {
 
                         int[] updateCounts = preparedStatement.executeBatch();
                         checkUpdateCounts(updateCounts);
-                        //preparedStatement.execute();
 
                         if (updateCounts.length == Integer.parseInt(batchSize)) {
                             query = "UPDATE " + targetDatabaseName
