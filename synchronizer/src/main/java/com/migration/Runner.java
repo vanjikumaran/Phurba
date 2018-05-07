@@ -409,11 +409,6 @@ public class Runner {
                             }
                         }
 
-                        log.info(String.format("Sync version:target db [%s], " +
-                                "Maximum sync id:source db [%s], " +
-                                "Next sync id:source db [%s], " +
-                                "table [%s]", targetDBSyncVersion, sourceDBMaxSyncId, startingSyncId, table));
-
                         query = "SELECT COLUMN_NAME FROM " +
                                 "information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"
                                 + sourceDatabaseName + "' AND TABLE_NAME = '" + table + "' LIMIT 1;";
@@ -437,6 +432,12 @@ public class Runner {
                                 log.error(String.format("Max sync id returned from source is null: Query: [%s] ", query));
                             }
                         }
+
+                        log.info(String.format("Sync version at target db [%s], " +
+                                "Maximum sync id at source db [%s], " +
+                                "Next sync id at source db [%s], " +
+                                "Ending sync id at source db for this cycle [%s], " +
+                                "table [%s]", targetDBSyncVersion, sourceDBMaxSyncId, startingSyncId, endingSyncId, table));
 
                         query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " in (SELECT DISTINCT "
                                 + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >=" + startingSyncId
@@ -477,20 +478,26 @@ public class Runner {
                         }
 
                         int[] updateResults = preparedStatement.executeBatch();
+                        log.info(String.format("Query: Batch update in target database: [%s] ", query));
+
                         logUpdateResults(updateResults);
 
-                        if (updateResults.length == Integer.parseInt(batchSize)) {
+                        if (updateResults.length != Integer.parseInt(batchSize)) {
 
-                            query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
-                                    + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
-                            preparedStatement = targetDBConnection.prepareStatement(query);
-                            preparedStatement.execute();
-                            log.info(String.format("Query: Batch update in target database: [%s] ", query));
-                        } else {
-
-                            log.error(String.format("Batch was different than configured batch size: Batch [%s]," +
+                            log.warn(String.format("Batch was different than configured batch size: Batch [%s]," +
                                     " Configured batch size [%s]", updateResults.length, batchSize));
                         }
+
+                        query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
+                                + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
+                        preparedStatement = targetDBConnection.prepareStatement(query);
+                        preparedStatement.execute();
+                        log.info(String.format("Query: Sync version update in target database: [%s] ", query));
+
+                    } else {
+
+                        log.error(String.format("Data is not consistent: Target DB sync version [%s], Source DB maximum " +
+                                "sync id", targetDBSyncVersion, sourceDBMaxSyncId));
                     }
 
                 } catch (SQLException e) {
