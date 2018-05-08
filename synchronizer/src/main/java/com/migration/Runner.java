@@ -365,43 +365,49 @@ public class Runner {
 
                     query = "SELECT SYNC_ID FROM " + targetTable + "_SYNC_VERSION;";
                     resultSet = targetDBConnection.createStatement().executeQuery(query);
-                    log.info(String.format("Query: Retrieve last sync version from target: [%s] ", query));
+                    if (log.isDebugEnabled())
+                        log.debug(String.format("Query: Retrieve last sync version from target: [%s] ", query));
 
                     if (resultSet.next()) {
 
                         targetDBSyncVersion = resultSet.getInt("SYNC_ID");
                         if (resultSet.wasNull()) {
-                            log.warn(String.format("Sync version returned from target is null: Query: [%s] ", query));
+                            if (log.isDebugEnabled())
+                                log.debug(String.format("Sync version returned from target is null: Query: [%s] ", query));
                         }
                     }
 
                     query = "SELECT MAX(SYNC_ID) FROM " + sourceTable + "_SYNC;";
                     resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                    log.info(String.format("Query: Retrieve source db max sync id: [%s] ", query));
+                    if (log.isDebugEnabled())
+                        log.debug(String.format("Query: Retrieve source db max sync id: [%s] ", query));
 
                     if (resultSet.next()) {
                         sourceDBMaxSyncId = resultSet.getInt("MAX(SYNC_ID)");
 
                         if (resultSet.wasNull()) {
-                            log.warn(String.format("Sync id returned is null: Query : [%s] ", query));
+                            if (log.isDebugEnabled())
+                                log.debug(String.format("Sync id returned is null: Query : [%s] ", query));
                             continue;
                         }
                     }
                     if (sourceDBMaxSyncId == targetDBSyncVersion) {
 
-                        log.info(String.format("[SYNC ACHIEVED] Data is synchronized at sync id [%s], table [%s]",
+                        if (log.isDebugEnabled())
+                            log.debug(String.format("[SYNC ACHIEVED] Data is synchronized at sync id [%s], table [%s]",
                                 targetDBSyncVersion, table));
 
                     } else if (sourceDBMaxSyncId > targetDBSyncVersion) {
-
-                        log.info(String.format("Data available for synchronization, table [%s], count [%s] ", table,
+                        if (log.isDebugEnabled())
+                            log.debug(String.format("Data available for synchronization, table [%s], count [%s] ", table,
                                 sourceDBMaxSyncId - targetDBSyncVersion));
 
                         query = "SELECT SYNC_ID FROM "
                                 + sourceTable + "_SYNC WHERE SYNC_ID > " + targetDBSyncVersion
                                 + " ORDER BY SYNC_ID LIMIT 1;";
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                        log.info(String.format("Query: Retrieve next sync id to be started, from source: [%s] ", query));
+                        if (log.isDebugEnabled())
+                            log.debug(String.format("Query: Retrieve next sync id to be started, from source: [%s] ", query));
 
                         if (resultSet.next()) {
                             startingSyncId = resultSet.getInt("SYNC_ID");
@@ -414,18 +420,20 @@ public class Runner {
                                 "information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"
                                 + sourceDatabaseName + "' AND TABLE_NAME = '" + table + "' LIMIT 1;";
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                        log.info(String.format("Query: Retrieving primary key column name from source [%s] ", query));
+                        if (log.isDebugEnabled())
+                            log.debug(String.format("Query: Retrieving primary key column name from source [%s] ", query));
                         resultSet.next();
 
                         String primaryCol = resultSet.getString(COLUMN_NAME);
 
                         query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceTable + "_SYNC AS T1 LEFT JOIN "
                                 + sourceTable + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol
-                                + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > "
+                                + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID >= "
                                 + startingSyncId + " LIMIT " + batchSize + ") x;";
 
                         resultSet = sourceDBConnection.createStatement().executeQuery(query);
-                        log.info(String.format("Query: Retrieve max sync id from source [%s] ", query));
+                        if (log.isDebugEnabled())
+                            log.debug(String.format("Query: Retrieve max sync id from source [%s] ", query));
 
                         if (resultSet.next()) {
                             endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
