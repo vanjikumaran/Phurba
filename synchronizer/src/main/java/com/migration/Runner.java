@@ -117,7 +117,7 @@ public class Runner {
 
             if ('-' == args[i].charAt(0) && args[i].length() > 2) {
 
-                switch (args[i]) {
+                switch (args[i].substring(1)) {
                     case SOURCE_DB_HOST:
                         sourceDatabaseHost = args[i + 1];
                     case SOURCE_DB_NAME:
