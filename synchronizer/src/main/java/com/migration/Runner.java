@@ -375,7 +375,7 @@ public class Runner {
 
     private static void syncTables(String[] syncTables, Connection targetDBConnection, Connection sourceDBConnection) {
 
-        log.info("Running periodic task...");
+        log.info("Running periodic sync task...");
 
         for (String table : syncTables) {
 
@@ -558,7 +558,6 @@ public class Runner {
                 log.error("Error occurred while creating target database connection", e);
             }
         }
-
     }
 
     public static void logUpdateResults(int[] updateResults) {
