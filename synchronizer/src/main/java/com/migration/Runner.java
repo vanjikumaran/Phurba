@@ -33,9 +33,10 @@ public class Runner {
     private static final String TARGET_DB_NAME = "target.db.name";
     private static final String SYNC_TABLES = "sync.tables";
     private static final String BATCH_SIZE = "batch.size";
+    private static final String TASK_INTERVAL = "task.interval";
+
     private static final String COLUMN_NAME = "COLUMN_NAME";
     private static final String COLUMN_TYPE = "COLUMN_TYPE";
-    private static final String SYNC_VERSION = "SYNC_VERSION";
 
     private static String sourceDatabaseHost;
     private static String sourceDatabaseName;
@@ -46,6 +47,7 @@ public class Runner {
     private static String targetDatabasePassword;
     private static String targetDatabaseName;
     private static String batchSize;
+    private static int taskInterval;
     private static String[] syncTables;
 
     private static Logger log = LogManager.getLogger(Runner.class);
@@ -71,6 +73,7 @@ public class Runner {
      * target.db.name
      * sync.tables
      * batch.size
+     * task.interval
      *
      * @param args command and configuration flags
      */
@@ -147,6 +150,14 @@ public class Runner {
                     case BATCH_SIZE:
                         batchSize = args[i + 1];
                         break;
+                    case TASK_INTERVAL:
+                        try {
+                            taskInterval = Integer.parseInt(args[i + 1]);
+                        } catch (NumberFormatException nfe) {
+                            log.error(String.format("Task interval should be an integer number, Erroneous config [%s] ")
+                                    , args[i + 1]);
+                        }
+                        break;
                     case SYNC_TABLES:
                         syncTables = args[i + 1].split(",");
                         break;
@@ -206,6 +217,14 @@ public class Runner {
                             break;
                         case BATCH_SIZE:
                             batchSize = value;
+                            break;
+                        case TASK_INTERVAL:
+                            try {
+                                taskInterval = Integer.parseInt(value);
+                            } catch (NumberFormatException nfe) {
+                                log.error(String.format("Task interval should be an integer number, Erroneous config [%s] ")
+                                        , value);
+                            }
                             break;
                         case SYNC_TABLES:
                             syncTables = value.split(",");
@@ -350,7 +369,7 @@ public class Runner {
 
         ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
         executor.scheduleAtFixedRate(() -> syncTables(syncTables, targetDBConnection, sourceDBConnection), 1000,
-                1000, TimeUnit.MILLISECONDS);
+                taskInterval, TimeUnit.MILLISECONDS);
     }
 
 
