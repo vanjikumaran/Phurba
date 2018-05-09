@@ -318,8 +318,6 @@ public class Runner {
 
     private static void startSyncProcess() {
 
-        PreparedStatement preparedStatement = null;
-
         Connection targetDBConnection = getTargetDBConnection();
         Connection sourceDBConnection = getSourceDBConnection();
 
@@ -331,16 +329,17 @@ public class Runner {
 
                 query = "CREATE TABLE IF NOT EXISTS " + targetTable + "_SYNC_VERSION (" +
                         " SYNC_ID INT) ENGINE=InnoDB DEFAULT CHARSET=latin1;";
-                preparedStatement = targetDBConnection.prepareStatement(query);
-                preparedStatement.execute();
-                log.info(String.format("Query: Create table for sync version at target database: [%s] ", query));
+                try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
+                    preparedStatement.execute();
+                    log.info(String.format("Query: Create table for sync version at target database: [%s] ", query));
 
+                }
                 query = "INSERT INTO " + targetTable + "_SYNC_VERSION (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM "
                         + targetTable + "_SYNC_VERSION);";
-                preparedStatement = targetDBConnection.prepareStatement(query);
-                preparedStatement.execute();
-                log.info(String.format("Query: Insert 0 if table is empty: [%s] ", query));
-
+                try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
+                    preparedStatement.execute();
+                    log.info(String.format("Query: Insert 0 if table is empty: [%s] ", query));
+                }
             } catch (SQLException e) {
                 log.error(String.format("Error occurred while executing SQL: Query : [%s] ", query), e);
             }
@@ -451,7 +450,6 @@ public class Runner {
                                 }
                             }
 
-
                             log.info(String.format("Sync version at target db [%s], " +
                                     "Maximum sync id at source db [%s], " +
                                     "Next sync id at source db [%s], " +
@@ -462,59 +460,62 @@ public class Runner {
                                     + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >=" + startingSyncId
                                     + " AND SYNC_ID <=" + endingSyncId + ");";
                         }
-                        try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
+                        try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
 
-                            if(log.isDebugEnabled())
-                                log.debug(String.format("Query: Retrieve data to be synced from source database: [%s] ", query));
+                            try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
 
-                            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-                            StringBuilder columnNames = new StringBuilder();
-                            StringBuilder bindVariables = new StringBuilder();
+                                if (log.isDebugEnabled())
+                                    log.debug(String.format("Query: Retrieve data to be synced from source database: [%s] ", query));
 
-                            for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+                                ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+                                StringBuilder columnNames = new StringBuilder();
+                                StringBuilder bindVariables = new StringBuilder();
 
-                                if (i > 1) {
-                                    columnNames.append(", ");
-                                    bindVariables.append(", ");
-                                }
-
-                                columnNames.append(resultSetMetaData.getColumnName(i));
-                                bindVariables.append('?');
-                            }
-
-                            query = "REPLACE INTO " + targetTable + " ("
-                                    + columnNames
-                                    + ") VALUES ("
-                                    + bindVariables
-                                    + ");";
-
-                            preparedStatement = targetDBConnection.prepareStatement(query);
-
-                            while (resultSet.next()) {
                                 for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
-                                    preparedStatement.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
+
+                                    if (i > 1) {
+                                        columnNames.append(", ");
+                                        bindVariables.append(", ");
+                                    }
+
+                                    columnNames.append(resultSetMetaData.getColumnName(i));
+                                    bindVariables.append('?');
                                 }
-                                preparedStatement.addBatch();
+
+                                query = "REPLACE INTO " + targetTable + " ("
+                                        + columnNames
+                                        + ") VALUES ("
+                                        + bindVariables
+                                        + ");";
+
+
+                                while (resultSet.next()) {
+                                    for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+                                        preparedStatement.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
+                                    }
+                                    preparedStatement.addBatch();
+                                }
                             }
+                            int[] updateResults = preparedStatement.executeBatch();
+                            log.info(String.format("Query: Batch update in target database: [%s] ", query));
+
+                            logUpdateResults(updateResults);
+
+                            if (updateResults.length != Integer.parseInt(batchSize)) {
+
+                                log.warn(String.format("Batch was different than configured batch size: Batch [%s]," +
+                                        " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
+                            }
+
                         }
-
-                        int[] updateResults = preparedStatement.executeBatch();
-                        log.info(String.format("Query: Batch update in target database: [%s] ", query));
-
-                        logUpdateResults(updateResults);
-
-                        if (updateResults.length != Integer.parseInt(batchSize)) {
-
-                            log.warn(String.format("Batch was different than configured batch size: Batch [%s]," +
-                                    " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
-                        }
-
                         query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
                                 + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
-                        preparedStatement = targetDBConnection.prepareStatement(query);
-                        preparedStatement.execute();
-                        log.info(String.format("Query: Sync version update in target database: [%s] ", query));
 
+                        try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
+
+                            preparedStatement.execute();
+                            log.info(String.format("Query: Sync version update in target database: [%s] ", query));
+                        }
                     } else {
 
                         log.error(String.format("Data is not consistent: Target DB sync version [%s], Source DB maximum " +
@@ -523,14 +524,6 @@ public class Runner {
 
                 } catch (SQLException e) {
                     log.error("Error occurred while creating target database connection", e);
-                } finally {
-
-                    if (null != preparedStatement) {
-                        try {
-                            preparedStatement.close();
-                        } catch (SQLException ignored) {
-                        }
-                    }
                 }
             }
         }
