@@ -356,7 +356,7 @@ public class Runner {
                     log.info(String.format("Query: Create table for sync version at target database: [%s] ", query));
 
                 }
-                query = "INSERT INTO " + targetTable + "_SYNC_VERSION (SYNC_ID) SELECT 0 WHERE NOT EXISTS (SELECT * FROM "
+                query = "INSERT INTO " + targetTable + "_SYNC_VERSION (SYNC_ID) SELECT 0 FROM DUAL WHERE NOT EXISTS (SELECT * FROM "
                         + targetTable + "_SYNC_VERSION);";
                 try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
                     preparedStatement.execute();
