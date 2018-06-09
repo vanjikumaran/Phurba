@@ -375,7 +375,8 @@ public class Runner {
 
     private static void syncTables(String[] syncTables, Connection targetDBConnection, Connection sourceDBConnection) {
 
-        log.info("Running periodic sync task...");
+        if (log.isDebugEnabled())
+            log.debug("Running periodic sync task...");
 
         for (String table : syncTables) {
 
@@ -416,7 +417,8 @@ public class Runner {
                         sourceDBMaxSyncId = resultSet.getInt("MAX(SYNC_ID)");
 
                         if (resultSet.wasNull()) {
-                            log.error(String.format("Max sync id returned from source is null: Table [%s] ", table));
+                            if (log.isDebugEnabled())
+                                log.debug(String.format("Max sync id returned from source is null: Table [%s] ", table));
                             continue;
                         }
                     }
@@ -494,6 +496,7 @@ public class Runner {
 
                     try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
 
+
                         if (log.isDebugEnabled())
                             log.debug(String.format("Query: Retrieve data to be synced from source database: [%s] ", query));
 
@@ -518,9 +521,12 @@ public class Runner {
                                 + bindVariables
                                 + ");";
 
+                        ArrayList<String> updatingKeys = new ArrayList<>();
                         try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
 
                             while (resultSet.next()) {
+                                updatingKeys.add(resultSet.getString(primaryCol));
+
                                 for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
                                     preparedStatement.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
                                 }
@@ -528,13 +534,16 @@ public class Runner {
                             }
 
                             int[] updateResults = preparedStatement.executeBatch();
-                            log.info(String.format("Query: Batch update in target database: [%s] ", query));
 
-                            logUpdateResults(updateResults);
+                            if (log.isDebugEnabled())
+                                log.debug(String.format("Query: Batch update in target database: [%s] ", query));
+
+                            logUpdateResults(updateResults, updatingKeys, table);
 
                             if (updateResults.length != Integer.parseInt(batchSize)) {
 
-                                log.warn(String.format("Batch was different than configured batch size: Batch [%s]," +
+                                if (log.isDebugEnabled())
+                                    log.debug(String.format("Batch was different than configured batch size: Batch [%s]," +
                                         " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
                             }
 
@@ -546,12 +555,12 @@ public class Runner {
                     try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
 
                         preparedStatement.execute();
-                        log.info(String.format("Query: Sync version update in target database: [%s] ", query));
+                        log.debug(String.format("Query: Sync version update in target database: [%s] ", query));
                     }
                 } else {
 
                     log.error(String.format("Data is not consistent: Target DB sync version [%s], Source DB maximum " +
-                            "sync id", targetDBSyncVersion, sourceDBMaxSyncId));
+                            "sync id [%s]", targetDBSyncVersion, sourceDBMaxSyncId));
                 }
 
             } catch (SQLException e) {
@@ -560,27 +569,33 @@ public class Runner {
         }
     }
 
-    public static void logUpdateResults(int[] updateResults) {
+    private static void logUpdateResults(int[] updateResults, ArrayList<String> updatingKeys, String table) {
 
-        ArrayList<Integer> failedUpdates = new ArrayList<>();
+        ArrayList<String> failedUpdates = new ArrayList<>();
         boolean updateSuccess = true;
 
         for (int updateResult : updateResults) {
             if (updateResult == Statement.EXECUTE_FAILED) {
 
                 updateSuccess = false;
-                failedUpdates.add(updateResult);
+                failedUpdates.add(String.valueOf(updateResult));
             }
         }
         if (updateSuccess) {
-            log.info("Batch update is successful for all the entries");
+
+            if (log.isDebugEnabled())
+                log.debug("Batch update is successful for all the entries");
         } else {
             log.error("Batch update is failed for some entries");
         }
-        for (int failedUpdate : failedUpdates) {
 
-            log.error(String.format("Indexes of failed updates: [%s] ", failedUpdate));
+        log.info(String.format("Table [%s], Sync'ed primary keys [%s]", table, String.join(", ", updatingKeys)));
+
+        if (failedUpdates.size() > 0) {
+            log.error(String.format("Table [%s], Indexes of failed updates: [%s] ", table, String.join(", ",
+                    failedUpdates)));
         }
+
     }
 
     private static void deleteSyncLog() {
