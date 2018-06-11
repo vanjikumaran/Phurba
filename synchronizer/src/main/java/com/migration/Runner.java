@@ -494,8 +494,8 @@ public class Runner {
                             + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >=" + startingSyncId
                             + " AND SYNC_ID <=" + endingSyncId + ");";
 
+                    boolean updateSuccess = false;
                     try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
-
 
                         if (log.isDebugEnabled())
                             log.debug(String.format("Query: Retrieve data to be synced from source database: [%s] ", query));
@@ -538,24 +538,27 @@ public class Runner {
                             if (log.isDebugEnabled())
                                 log.debug(String.format("Query: Batch update in target database: [%s] ", query));
 
-                            logUpdateResults(updateResults, updatingKeys, table);
+                            updateSuccess = determineUpdateResults(updateResults, updatingKeys, table);
 
                             if (updateResults.length != Integer.parseInt(batchSize)) {
 
                                 if (log.isDebugEnabled())
                                     log.debug(String.format("Batch was different than configured batch size: Batch [%s]," +
-                                        " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
+                                            " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
                             }
-
                         }
                     }
-                    query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
-                            + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
 
-                    try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
+                    if (updateSuccess) {
+                        query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
+                                + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
 
-                        preparedStatement.execute();
-                        log.debug(String.format("Query: Sync version update in target database: [%s] ", query));
+                        try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
+
+                            preparedStatement.execute();
+                            if (log.isDebugEnabled())
+                                log.debug(String.format("Query: Sync version update in target database: [%s] ", query));
+                        }
                     }
                 } else {
 
@@ -564,12 +567,12 @@ public class Runner {
                 }
 
             } catch (SQLException e) {
-                log.error("Error occurred while creating target database connection", e);
+                log.error("Error occurred while running SQL", e);
             }
         }
     }
 
-    private static void logUpdateResults(int[] updateResults, ArrayList<String> updatingKeys, String table) {
+    private static boolean determineUpdateResults(int[] updateResults, ArrayList<String> updatingKeys, String table) {
 
         ArrayList<String> failedUpdates = new ArrayList<>();
         boolean updateSuccess = true;
@@ -594,8 +597,10 @@ public class Runner {
         if (failedUpdates.size() > 0) {
             log.error(String.format("Table [%s], Indexes of failed updates: [%s] ", table, String.join(", ",
                     failedUpdates)));
+            updateSuccess = false;
         }
 
+        return updateSuccess;
     }
 
     private static void deleteSyncLog() {
