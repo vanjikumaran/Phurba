@@ -518,7 +518,7 @@ public class Runner {
 
                             long endTime = System.currentTimeMillis();
                             log.info(String.format("Table [%s], Elapsed time [%s ms], Target sync version [%s]",
-                                    table, endTime - startTime, targetDBSyncVersion));
+                                    table, endTime - startTime, endingSyncId));
 
                             if (log.isDebugEnabled())
                                 log.info(String.format("Table [%s], Sync'ed primary keys [%s]",
@@ -545,6 +545,8 @@ public class Runner {
                             if (log.isDebugEnabled())
                                 log.debug(String.format("Query: Sync version update in target database: [%s] ", query));
                         }
+                    } else {
+                        log.error("Update of the complete batch was not successful, avoiding target DB sync version update");
                     }
 
                 } catch (SQLException e) {
