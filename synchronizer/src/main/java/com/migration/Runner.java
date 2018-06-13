@@ -517,8 +517,12 @@ public class Runner {
                             updateSuccess = determineUpdateResults(updateResults, table);
 
                             long endTime = System.currentTimeMillis();
-                            log.info(String.format("Table [%s], Elapsed time [%s ms], Sync'ed primary keys [%s]", table,
-                                    endTime - startTime, String.join(", ", updatingKeys)));
+                            log.info(String.format("Table [%s], Elapsed time [%s ms], Target sync version [%s]",
+                                    table, endTime - startTime, targetDBSyncVersion));
+
+                            if (log.isDebugEnabled())
+                                log.info(String.format("Table [%s], Sync'ed primary keys [%s]",
+                                    table, String.join(", ", updatingKeys)));
 
                             if (updateResults.length < Integer.parseInt(batchSize)) {
 
