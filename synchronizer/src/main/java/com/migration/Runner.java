@@ -380,7 +380,7 @@ public class Runner {
         while (true) {
 
             if (log.isDebugEnabled())
-                log.info("Running sync task...");
+                log.debug("Running sync task...");
 
             boolean activateWait = true;
             for (String table : syncTables) {
