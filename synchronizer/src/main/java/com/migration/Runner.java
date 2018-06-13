@@ -385,6 +385,8 @@ public class Runner {
             boolean activateWait = true;
             for (String table : syncTables) {
 
+                long startTime = System.currentTimeMillis();
+
                 String query;
                 try {
                     String sourceTable = sourceDatabaseName + "." + table;
@@ -512,7 +514,7 @@ public class Runner {
                                 log.debug(String.format("Query: Batch update in target database: [%s] ", query));
 
                             updateSuccess = determineUpdateResults(updateResults, updatingKeys, table);
-                            
+
                             if (updateResults.length < Integer.parseInt(batchSize)) {
 
                                 if (log.isDebugEnabled())
@@ -539,6 +541,8 @@ public class Runner {
                 } catch (SQLException e) {
                     log.error("Error occurred while running SQL", e);
                 }
+                long endTime = System.currentTimeMillis();
+                log.info(String.format("Execution time [%s], table [%s] ", (endTime - startTime) + " milli seconds", table));
             }
             if (activateWait)
                 Thread.sleep(taskInterval);
