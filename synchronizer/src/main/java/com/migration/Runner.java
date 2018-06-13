@@ -461,10 +461,10 @@ public class Runner {
                         }
                     }
 
-                    if(log.isDebugEnabled())
+                    if (log.isDebugEnabled())
                         log.debug(String.format("Sync version at target db [%s], " +
-                            "Ending sync id at source db for this cycle [%s], " +
-                            "table [%s]", targetDBSyncVersion, endingSyncId, table));
+                                "Ending sync id at source db for this cycle [%s], " +
+                                "table [%s]", targetDBSyncVersion, endingSyncId, table));
 
                     query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " in (SELECT DISTINCT "
                             + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >=" + startingSyncId
@@ -515,10 +515,10 @@ public class Runner {
                                 log.debug(String.format("Query: Batch update in target database: [%s] ", query));
 
                             updateSuccess = determineUpdateResults(updateResults, table);
-                            
+
                             long endTime = System.currentTimeMillis();
-                            log.info(String.format("Table [%s], Elapsed time [s% ms], Sync'ed primary keys [%s]", table,
-                                    (endTime - startTime), String.join(", ", updatingKeys)));
+                            log.info(String.format("Table [%s], Elapsed time [%s ms], Sync'ed primary keys [%s]", table,
+                                    endTime - startTime, String.join(", ", updatingKeys)));
 
                             if (updateResults.length < Integer.parseInt(batchSize)) {
 
