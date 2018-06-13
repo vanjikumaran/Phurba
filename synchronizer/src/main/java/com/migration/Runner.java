@@ -392,6 +392,7 @@ public class Runner {
 
                     int targetDBSyncVersion = 0;
                     int endingSyncId = 0;
+                    int startingSyncId = 0;
 
                     query = "SELECT SYNC_ID FROM " + targetTable + "_SYNC_VERSION;";
                     try (ResultSet resultSet = targetDBConnection.createStatement().executeQuery(query)) {
@@ -408,6 +409,7 @@ public class Runner {
                                         "for this cycle. Table [%s] ", table));
                                 continue;
                             }
+                            startingSyncId = targetDBSyncVersion + 1;
                         }
                     }
 
@@ -427,8 +429,8 @@ public class Runner {
 
                     query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceTable + "_SYNC AS T1 LEFT JOIN "
                             + sourceTable + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol
-                            + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID > "
-                            + targetDBSyncVersion + " LIMIT " + batchSize + ") x;";
+                            + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID >= "
+                            + startingSyncId + " LIMIT " + batchSize + ") x;";
 
                     try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
 
@@ -442,11 +444,13 @@ public class Runner {
                                         " this cycle. Query: [%s] ", query));
                                 continue;
                             } else {
+
                                 endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
                                 if (endingSyncId < targetDBSyncVersion) {
 
                                     continue;
                                 } else if (0 == endingSyncId) {
+
                                     if (log.isDebugEnabled())
                                         log.debug(String.format("No data to synchronize for table [%s]", table));
                                     continue;
@@ -460,7 +464,7 @@ public class Runner {
                             "table [%s]", targetDBSyncVersion, endingSyncId, table));
 
                     query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " in (SELECT DISTINCT "
-                            + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >" + targetDBSyncVersion
+                            + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >=" + startingSyncId
                             + " AND SYNC_ID <=" + endingSyncId + ");";
 
                     boolean updateSuccess;
@@ -508,7 +512,7 @@ public class Runner {
                                 log.debug(String.format("Query: Batch update in target database: [%s] ", query));
 
                             updateSuccess = determineUpdateResults(updateResults, updatingKeys, table);
-
+                            
                             if (updateResults.length < Integer.parseInt(batchSize)) {
 
                                 if (log.isDebugEnabled())
