@@ -521,7 +521,7 @@ public class Runner {
                                     table, endTime - startTime, endingSyncId));
 
                             if (log.isDebugEnabled())
-                                log.info(String.format("Table [%s], Sync'ed primary keys [%s]",
+                                log.debug(String.format("Table [%s], Sync'ed primary keys [%s]",
                                     table, String.join(", ", updatingKeys)));
 
                             if (updateResults.length < Integer.parseInt(batchSize)) {
