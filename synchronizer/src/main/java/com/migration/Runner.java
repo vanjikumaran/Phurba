@@ -541,8 +541,10 @@ public class Runner {
                 } catch (SQLException e) {
                     log.error("Error occurred while running SQL", e);
                 }
-                long endTime = System.currentTimeMillis();
-                log.info(String.format("Execution time [%s], table [%s] ", (endTime - startTime) + " milli seconds", table));
+                if (log.isDebugEnabled()) {
+                    long endTime = System.currentTimeMillis();
+                    log.info(String.format("Execution time [%s], table [%s] ", (endTime - startTime) + " milli seconds", table));
+                }
             }
             if (activateWait)
                 Thread.sleep(taskInterval);
