@@ -432,16 +432,19 @@ public class Runner {
 
                     try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
 
+                        if (log.isDebugEnabled())
+                            log.debug(String.format("Query: Retrieve ending sync id at source db for this cycle [%s] ", query));
+
                         if (resultSet.next()) {
 
                             if (resultSet.wasNull()) {
-                                log.warn(String.format("Max sync id returned from source is null. Data sync avoided for" +
+                                log.warn(String.format("Ending sync id at source db for this cycle is null. Data sync avoided for" +
                                         " this cycle. Query: [%s] ", query));
                                 continue;
                             } else {
                                 endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
                                 if (endingSyncId < targetDBSyncVersion) {
-                                    
+
                                     continue;
                                 } else if (0 == endingSyncId) {
                                     if (log.isDebugEnabled())
@@ -450,8 +453,6 @@ public class Runner {
                                 }
                             }
                         }
-                        if (log.isDebugEnabled())
-                            log.debug(String.format("Query: Retrieve max sync id from source [%s] ", query));
                     }
 
                     log.info(String.format("Sync version at target db [%s], " +
@@ -513,12 +514,8 @@ public class Runner {
                                 if (log.isDebugEnabled())
                                     log.debug(String.format("Batch was smaller than configured batch size: Batch [%s]," +
                                             " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
-                            } else if (updateResults.length == Integer.parseInt(batchSize)) {
-                                activateWait = false;
                             } else {
-                                log.error(String.format("Batch was larger than configured batch size: Batch [%s]," +
-                                                " Configured batch size [%s], table [%s], Success [%s]", updateResults.length,
-                                        batchSize, table, updateSuccess));
+                                activateWait = false;
                             }
                         }
                     }
