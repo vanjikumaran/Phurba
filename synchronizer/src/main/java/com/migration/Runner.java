@@ -461,7 +461,8 @@ public class Runner {
                         }
                     }
 
-                    log.info(String.format("Sync version at target db [%s], " +
+                    if(log.isDebugEnabled())
+                        log.debug(String.format("Sync version at target db [%s], " +
                             "Ending sync id at source db for this cycle [%s], " +
                             "table [%s]", targetDBSyncVersion, endingSyncId, table));
 
@@ -513,7 +514,11 @@ public class Runner {
                             if (log.isDebugEnabled())
                                 log.debug(String.format("Query: Batch update in target database: [%s] ", query));
 
-                            updateSuccess = determineUpdateResults(updateResults, updatingKeys, table);
+                            updateSuccess = determineUpdateResults(updateResults, table);
+                            
+                            long endTime = System.currentTimeMillis();
+                            log.info(String.format("Table [%s], Elapsed time [s% ms], Sync'ed primary keys [%s]", table,
+                                    (endTime - startTime), String.join(", ", updatingKeys)));
 
                             if (updateResults.length < Integer.parseInt(batchSize)) {
 
@@ -541,17 +546,13 @@ public class Runner {
                 } catch (SQLException e) {
                     log.error("Error occurred while running SQL", e);
                 }
-                if (log.isDebugEnabled()) {
-                    long endTime = System.currentTimeMillis();
-                    log.info(String.format("Execution time [%s], table [%s] ", (endTime - startTime) + " milli seconds", table));
-                }
             }
             if (activateWait)
                 Thread.sleep(taskInterval);
         }
     }
 
-    private static boolean determineUpdateResults(int[] updateResults, ArrayList<String> updatingKeys, String table) {
+    private static boolean determineUpdateResults(int[] updateResults, String table) {
 
         ArrayList<String> failedUpdates = new ArrayList<>();
         boolean updateSuccess = true;
@@ -570,8 +571,6 @@ public class Runner {
         } else {
             log.error("Batch update is failed for some entries");
         }
-
-        log.info(String.format("Table [%s], Sync'ed primary keys [%s]", table, String.join(", ", updatingKeys)));
 
         if (failedUpdates.size() > 0) {
             log.error(String.format("Table [%s], Indexes of failed updates: [%s] ", table, String.join(", ",
