@@ -476,6 +476,16 @@ public class Runner {
                                 }
                             }
 
+                            if (endingSyncId < targetDBSyncVersion) {
+
+                                continue;
+                            } else if (0 == endingSyncId) {
+
+                                if (log.isDebugEnabled())
+                                    log.debug(String.format("No data to synchronize for table [%s]", table));
+                                continue;
+                            }
+
                             int[] updateResults = preparedStatement.executeBatch();
 
                             if (log.isDebugEnabled())
