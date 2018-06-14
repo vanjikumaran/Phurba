@@ -429,48 +429,13 @@ public class Runner {
 
                     }
 
-                    query = "SELECT MAX(SYNC_ID) FROM ( SELECT T1.SYNC_ID FROM " + sourceTable + "_SYNC AS T1 LEFT JOIN "
-                            + sourceTable + "_SYNC AS T2 ON T1." + primaryCol + "= T2." + primaryCol
-                            + " AND T1.SYNC_ID < T2.SYNC_ID WHERE T2.SYNC_ID IS NULL AND T1.SYNC_ID >= "
-                            + startingSyncId + " LIMIT " + batchSize + ") x;";
-
-                    try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
-
-                        if (log.isDebugEnabled())
-                            log.debug(String.format("Query: Retrieve ending sync id at source db for this cycle [%s] ", query));
-
-                        if (resultSet.next()) {
-
-                            if (resultSet.wasNull()) {
-                                log.warn(String.format("Ending sync id at source db for this cycle is null. Data sync avoided for" +
-                                        " this cycle. Query: [%s] ", query));
-                                continue;
-                            } else {
-
-                                endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
-                                if (endingSyncId < targetDBSyncVersion) {
-
-                                    continue;
-                                } else if (0 == endingSyncId) {
-
-                                    if (log.isDebugEnabled())
-                                        log.debug(String.format("No data to synchronize for table [%s]", table));
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-
-                    if (log.isDebugEnabled())
-                        log.debug(String.format("Sync version at target db [%s], " +
-                                "Ending sync id at source db for this cycle [%s], " +
-                                "table [%s]", targetDBSyncVersion, endingSyncId, table));
-
-                    query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " in (SELECT DISTINCT "
-                            + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID >=" + startingSyncId
-                            + " AND SYNC_ID <=" + endingSyncId + ");";
+                    query = "SELECT DATAT.*, MAX(SYNCT.SYNC_ID) AS SYNC_ID FROM " + sourceTable + "_SYNC SYNCT, "
+                            + sourceTable + " DATAT WHERE SYNCT." + primaryCol + " = DATAT." + primaryCol
+                            + " AND SYNCT.SYNC_ID > " + targetDBSyncVersion
+                            + " GROUP BY " + primaryCol + " ORDER BY SYNC_ID LIMIT " + batchSize + ";";
 
                     boolean updateSuccess;
+
                     try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
 
                         if (log.isDebugEnabled())
@@ -480,7 +445,7 @@ public class Runner {
                         StringBuilder columnNames = new StringBuilder();
                         StringBuilder bindVariables = new StringBuilder();
 
-                        for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+                        for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
 
                             if (i > 1) {
                                 columnNames.append(", ");
@@ -503,10 +468,14 @@ public class Runner {
                             while (resultSet.next()) {
                                 updatingKeys.add(resultSet.getString(primaryCol));
 
-                                for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+                                for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
                                     preparedStatement.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
                                 }
                                 preparedStatement.addBatch();
+
+                                if (resultSet.isLast()) {
+                                    endingSyncId = resultSet.getInt("SYNC_ID");
+                                }
                             }
 
                             int[] updateResults = preparedStatement.executeBatch();
