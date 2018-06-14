@@ -151,8 +151,8 @@ public class Runner {
                         try {
                             taskInterval = Integer.parseInt(args[i + 1]);
                         } catch (NumberFormatException nfe) {
-                            log.error(String.format("Task interval should be an integer number, Erroneous config [%s] ")
-                                    , args[i + 1]);
+                            log.error("Task interval should be an integer number, Erroneous config :" +
+                                    args[i + 1]);
                         }
                         break;
                     case SYNC_TABLES:
@@ -219,8 +219,8 @@ public class Runner {
                             try {
                                 taskInterval = Integer.parseInt(value);
                             } catch (NumberFormatException nfe) {
-                                log.error(String.format("Task interval should be an integer number, Erroneous config [%s] ")
-                                        , value);
+                                log.error("Task interval should be an integer number, Erroneous config : " +
+                                        value);
                             }
                             break;
                         case SYNC_TABLES:
@@ -394,7 +394,6 @@ public class Runner {
 
                     int targetDBSyncVersion = 0;
                     int endingSyncId = 0;
-                    int startingSyncId = 0;
 
                     query = "SELECT SYNC_ID FROM " + targetTable + "_SYNC_VERSION;";
                     try (ResultSet resultSet = targetDBConnection.createStatement().executeQuery(query)) {
@@ -411,7 +410,6 @@ public class Runner {
                                         "for this cycle. Table [%s] ", table));
                                 continue;
                             }
-                            startingSyncId = targetDBSyncVersion + 1;
                         }
                     }
 
@@ -491,7 +489,7 @@ public class Runner {
 
                             if (log.isDebugEnabled())
                                 log.debug(String.format("Table [%s], Sync'ed primary keys [%s]",
-                                    table, String.join(", ", updatingKeys)));
+                                        table, String.join(", ", updatingKeys)));
 
                             if (updateResults.length < Integer.parseInt(batchSize)) {
 
