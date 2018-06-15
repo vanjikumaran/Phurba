@@ -527,7 +527,11 @@ public class Runner {
                     }
 
                 } catch (SQLException e) {
-                    log.error("Error occurred while running SQL", e);
+                    if (e.getMessage().contains("Cannot add or update a child row: a foreign key constraint fails")) {
+                        log.warn("Foreign key constraint error occurred. Will be fixed in next round : " + e.getMessage());
+                    } else {
+                        log.error("Error occurred while running SQL", e);
+                    }
                 }
             }
             if (activateWait)
