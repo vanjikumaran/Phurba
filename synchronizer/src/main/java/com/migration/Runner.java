@@ -8,6 +8,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Runs different commands related to synchronization of database
@@ -373,21 +374,49 @@ public class Runner {
 
 
     @SuppressWarnings("InfiniteLoopStatement")
-    private static void syncTables(String[] syncTables, int taskInterval, Connection targetDBConnection,
+    private static void syncTables(String[] tables, int taskInterval, Connection targetDBConnection,
                                    Connection sourceDBConnection) throws InterruptedException {
 
+        ConcurrentHashMap<String, String> primaryColMap = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, PreparedStatement> targetSyncVersionPsMap = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, PreparedStatement> dataExtractionPsMap = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, PreparedStatement> dataUpdatePsMap = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, PreparedStatement> targetVersionUpdatePsMap = new ConcurrentHashMap<>();
+
+        for (String table : tables) {
+
+            String query = "SELECT COLUMN_NAME FROM " +
+                    "information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"
+                    + sourceDatabaseName + "' AND TABLE_NAME = '" + table + "' LIMIT 1;";
+            try (ResultSet resultSet = targetDBConnection.prepareStatement(query).executeQuery()) {
+
+                resultSet.next();
+                primaryColMap.put(table, resultSet.getString(COLUMN_NAME));
+
+            } catch (SQLException e) {
+                log.error("Error occurred while executing primary column query", e);
+            }
+
+            try {
+                query = "SELECT SYNC_ID FROM " + targetDatabaseName + "." + table + "_SYNC_VERSION;";
+                targetSyncVersionPsMap.put(table, targetDBConnection.prepareStatement(query));
+
+            } catch (SQLException e) {
+                log.error(String.format("Error occurred while creating target db version prepared statement, Table [%s]", table), e);
+            }
+        }
 
         while (true) {
 
-            if (log.isDebugEnabled())
+            if (log.isDebugEnabled()) {
                 log.debug("Running sync task...");
+            }
 
             boolean activateWait = true;
-            for (String table : syncTables) {
+            for (String table : tables) {
 
                 long startTime = System.currentTimeMillis();
 
-                String query;
                 try {
                     String sourceTable = sourceDatabaseName + "." + table;
                     String targetTable = targetDatabaseName + "." + table;
@@ -395,11 +424,7 @@ public class Runner {
                     int targetDBSyncVersion = 0;
                     int endingSyncId = 0;
 
-                    query = "SELECT SYNC_ID FROM " + targetTable + "_SYNC_VERSION;";
-                    try (ResultSet resultSet = targetDBConnection.createStatement().executeQuery(query)) {
-
-                        if (log.isDebugEnabled())
-                            log.debug(String.format("Query: Retrieve last sync version from target: [%s] ", query));
+                    try (ResultSet resultSet = targetSyncVersionPsMap.get(table).executeQuery()) {
 
                         if (resultSet.next()) {
 
@@ -413,31 +438,25 @@ public class Runner {
                         }
                     }
 
-                    query = "SELECT COLUMN_NAME FROM " +
-                            "information_schema.COLUMNS WHERE COLUMN_KEY ='PRI' AND TABLE_SCHEMA = '"
-                            + sourceDatabaseName + "' AND TABLE_NAME = '" + table + "' LIMIT 1;";
-                    String primaryCol;
-                    try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
+                    if (!dataExtractionPsMap.contains(table)) {
 
-                        if (log.isDebugEnabled())
-                            log.debug(String.format("Query: Retrieving primary key column name from source [%s] ", query));
-                        resultSet.next();
+                        String primaryCol = primaryColMap.get(table);
 
-                        primaryCol = resultSet.getString(COLUMN_NAME);
+                        String query = "SELECT DATAT.*, MAX(SYNCT.SYNC_ID) AS SYNC_ID FROM " + sourceTable + "_SYNC SYNCT, "
+                                + sourceTable + " DATAT WHERE SYNCT." + primaryCol + " = DATAT." + primaryCol
+                                + " AND SYNCT.SYNC_ID > ? GROUP BY " + primaryCol + " ORDER BY SYNC_ID LIMIT " + batchSize + ";";
 
+                        dataExtractionPsMap.put(table, sourceDBConnection.prepareStatement(query));
                     }
-
-                    query = "SELECT DATAT.*, MAX(SYNCT.SYNC_ID) AS SYNC_ID FROM " + sourceTable + "_SYNC SYNCT, "
-                            + sourceTable + " DATAT WHERE SYNCT." + primaryCol + " = DATAT." + primaryCol
-                            + " AND SYNCT.SYNC_ID > " + targetDBSyncVersion
-                            + " GROUP BY " + primaryCol + " ORDER BY SYNC_ID LIMIT " + batchSize + ";";
+                    dataExtractionPsMap.get(table).setInt(1, targetDBSyncVersion);
 
                     boolean updateSuccess;
 
-                    try (ResultSet resultSet = sourceDBConnection.createStatement().executeQuery(query)) {
+                    try (ResultSet resultSet = dataExtractionPsMap.get(table).executeQuery()) {
 
-                        if (log.isDebugEnabled())
-                            log.debug(String.format("Query: Retrieve data to be synced from source database: [%s] ", query));
+                        long t1Time = System.currentTimeMillis();
+                        log.info(String.format("Table [%s], Elapsed time till data extraction [%s ms], Target sync version [%s]",
+                                table, t1Time - startTime, endingSyncId));
 
                         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
                         StringBuilder columnNames = new StringBuilder();
@@ -454,83 +473,93 @@ public class Runner {
                             bindVariables.append('?');
                         }
 
-                        query = "REPLACE INTO " + targetTable + " ("
-                                + columnNames
-                                + ") VALUES ("
-                                + bindVariables
-                                + ");";
+                        if (!dataUpdatePsMap.containsKey(table)) {
 
+                            String query = "REPLACE INTO " + targetTable + " ("
+                                    + columnNames
+                                    + ") VALUES ("
+                                    + bindVariables
+                                    + ");";
+
+                            dataUpdatePsMap.put(table, targetDBConnection.prepareStatement(query));
+                        }
                         ArrayList<String> updatingKeys = new ArrayList<>();
-                        try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
+                        PreparedStatement dataUpdatePs = dataUpdatePsMap.get(table);
 
-                            while (resultSet.next()) {
-                                updatingKeys.add(resultSet.getString(primaryCol));
+                        while (resultSet.next()) {
+                            updatingKeys.add(resultSet.getString(primaryColMap.get(table)));
 
-                                for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
-                                    preparedStatement.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
-                                }
-                                preparedStatement.addBatch();
-
-                                if (resultSet.isLast()) {
-                                    endingSyncId = resultSet.getInt("SYNC_ID");
-                                }
+                            for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
+                                dataUpdatePs.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
                             }
+                            dataUpdatePs.addBatch();
 
-                            if (endingSyncId < targetDBSyncVersion) {
-
-                                continue;
-                            } else if (0 == endingSyncId) {
-
-                                if (log.isDebugEnabled())
-                                    log.debug(String.format("No data to synchronize for table [%s]", table));
-                                continue;
-                            }
-
-                            int[] updateResults = preparedStatement.executeBatch();
-
-                            if (log.isDebugEnabled())
-                                log.debug(String.format("Query: Batch update in target database: [%s] ", query));
-
-                            updateSuccess = determineUpdateResults(updateResults, table);
-
-                            long endTime = System.currentTimeMillis();
-                            log.info(String.format("Table [%s], Elapsed time [%s ms], Target sync version [%s]",
-                                    table, endTime - startTime, endingSyncId));
-
-                            if (log.isDebugEnabled())
-                                log.debug(String.format("Table [%s], Sync'ed primary keys [%s]",
-                                        table, String.join(", ", updatingKeys)));
-
-                            if (updateResults.length < Integer.parseInt(batchSize)) {
-
-                                if (log.isDebugEnabled())
-                                    log.debug(String.format("Batch was smaller than configured batch size: Batch [%s]," +
-                                            " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
-                            } else {
-                                activateWait = false;
+                            if (resultSet.isLast()) {
+                                endingSyncId = resultSet.getInt("SYNC_ID");
                             }
                         }
+
+                        if (endingSyncId < targetDBSyncVersion) {
+
+                            continue;
+                        } else if (0 == endingSyncId) {
+
+                            if (log.isDebugEnabled())
+                                log.debug(String.format("No data to synchronize for table [%s]", table));
+                            continue;
+                        }
+
+                        long t2Time = System.currentTimeMillis();
+                        log.info(String.format("Table [%s], Elapsed time till before data update [%s ms], Target sync version [%s]",
+                                table, t2Time - startTime, endingSyncId));
+
+                        int[] updateResults = dataUpdatePs.executeBatch();
+
+                        long t3Time = System.currentTimeMillis();
+                        log.info(String.format("Table [%s], Elapsed time for data update [%s ms], Target sync version [%s]",
+                                table, t3Time - t2Time, endingSyncId));
+
+                        updateSuccess = determineUpdateResults(updateResults, table);
+
+                        long endTime = System.currentTimeMillis();
+                        log.info(String.format("Table [%s], Elapsed time [%s ms], Target sync version [%s]",
+                                table, endTime - startTime, endingSyncId));
+
+                        if (log.isDebugEnabled())
+                            log.debug(String.format("Table [%s], Sync'ed primary keys [%s]",
+                                    table, String.join(", ", updatingKeys)));
+
+                        if (updateResults.length < Integer.parseInt(batchSize)) {
+
+                            if (log.isDebugEnabled())
+                                log.debug(String.format("Batch was smaller than configured batch size: Batch [%s]," +
+                                        " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
+                        } else {
+                            activateWait = false;
+                        }
+
                     }
 
                     if (updateSuccess) {
-                        query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
-                                + " WHERE SYNC_ID = " + targetDBSyncVersion + ";";
+                        if (!targetVersionUpdatePsMap.contains(table)) {
 
-                        try (PreparedStatement preparedStatement = targetDBConnection.prepareStatement(query)) {
-
-                            preparedStatement.execute();
-                            if (log.isDebugEnabled())
-                                log.debug(String.format("Query: Sync version update in target database: [%s] ", query));
+                            String query = "UPDATE " + targetTable + "_SYNC_VERSION SET SYNC_ID = " + endingSyncId
+                                    + " WHERE SYNC_ID = ?;";
+                            targetVersionUpdatePsMap.put(table, targetDBConnection.prepareStatement(query));
                         }
+                        targetVersionUpdatePsMap.get(table).setInt(1, targetDBSyncVersion);
+                        targetVersionUpdatePsMap.get(table).execute();
+
                     } else {
-                        log.error("Update of the complete batch was not successful, avoiding target DB sync version update");
+                        log.error(String.format("Update of the complete batch was not successful, avoiding target" +
+                                " DB sync version update, Table [%s]", table));
                     }
 
                 } catch (SQLException e) {
                     if (e.getMessage().contains("Cannot add or update a child row: a foreign key constraint fails")) {
                         log.warn("Foreign key constraint error occurred. Will be fixed in next round : " + e.getMessage());
                     } else {
-                        log.error("Error occurred while running SQL", e);
+                        log.error(String.format("Error occurred while running SQL, Table [%s]", table), e);
                     }
                 }
             }
