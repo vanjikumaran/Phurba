@@ -441,10 +441,6 @@ public class Runner {
                         }
                     }
 
-                    long t0Time = System.currentTimeMillis();
-                    log.info(String.format("Table [%s], Elapsed time for target sync version extraction [%s ms], Target sync version [%s]",
-                            table, t0Time - startTime, targetDBSyncVersion));
-
                     ArrayList<String> updatingKeys = new ArrayList<>();
 
                     if (!dataInformationPsMap.contains(table)) {
@@ -473,11 +469,15 @@ public class Runner {
 
                     boolean updateSuccess;
 
+                    long t0Time = System.currentTimeMillis();
+
                     try (ResultSet resultSet = dataExtractionPsMap.get(table).executeQuery()) {
 
-                        long t1Time = System.currentTimeMillis();
-                        log.info(String.format("Table [%s], Elapsed time for data extraction [%s ms], Target sync version [%s]",
-                                table, t1Time - t0Time, targetDBSyncVersion));
+                        if (log.isDebugEnabled()) {
+                            long t1Time = System.currentTimeMillis();
+                            log.info(String.format("Table [%s], Elapsed time for data extraction [%s ms], Target sync version [%s]",
+                                    table, t1Time - t0Time, targetDBSyncVersion));
+                        }
 
                         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
                         StringBuilder columnNames = new StringBuilder();
@@ -529,9 +529,11 @@ public class Runner {
 
                         int[] updateResults = dataUpdatePs.executeBatch();
 
-                        long t3Time = System.currentTimeMillis();
-                        log.info(String.format("Table [%s], Elapsed time for data update [%s ms], Target sync version [%s]",
-                                table, t3Time - t2Time, targetDBSyncVersion));
+                        if (log.isDebugEnabled()) {
+                            long t3Time = System.currentTimeMillis();
+                            log.info(String.format("Table [%s], Elapsed time for data update [%s ms], Target sync version [%s]",
+                                    table, t3Time - t2Time, targetDBSyncVersion));
+                        }
 
                         updateSuccess = determineUpdateResults(updateResults, table);
 
