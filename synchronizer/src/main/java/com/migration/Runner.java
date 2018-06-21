@@ -476,7 +476,7 @@ public class Runner {
                     try (ResultSet resultSet = dataExtractionPsMap.get(table).executeQuery()) {
 
                         long t1Time = System.currentTimeMillis();
-                        log.info(String.format("Table [%s], Elapsed time for data extraction [%s ms], Table [%s]",
+                        log.info(String.format("Table [%s], Elapsed time for data extraction [%s ms], Target sync version [%s]",
                                 table, t1Time - t0Time, targetDBSyncVersion));
 
                         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
