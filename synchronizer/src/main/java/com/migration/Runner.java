@@ -379,6 +379,7 @@ public class Runner {
 
         ConcurrentHashMap<String, String> primaryColMap = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, PreparedStatement> targetSyncVersionPsMap = new ConcurrentHashMap<>();
+        ConcurrentHashMap<String, PreparedStatement> dataInformationPsMap = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, PreparedStatement> dataExtractionPsMap = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, PreparedStatement> dataUpdatePsMap = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, PreparedStatement> targetVersionUpdatePsMap = new ConcurrentHashMap<>();
@@ -417,6 +418,8 @@ public class Runner {
 
                 long startTime = System.currentTimeMillis();
 
+                String primaryCol = primaryColMap.get(table);
+
                 try {
                     String sourceTable = sourceDatabaseName + "." + table;
                     String targetTable = targetDatabaseName + "." + table;
@@ -442,31 +445,47 @@ public class Runner {
                     log.info(String.format("Table [%s], Elapsed time for target sync version extraction [%s ms], Target sync version [%s]",
                             table, t0Time - startTime, targetDBSyncVersion));
 
+                    ArrayList<String> updatingKeys = new ArrayList<>();
+
+                    if (!dataInformationPsMap.contains(table)) {
+                        String query = "SELECT MAX(SYNC_ID) FROM (" +
+                                "SELECT SYNC_ID FROM " + sourceTable + "_SYNC WHERE SYNC_ID > ? limit " + batchSize + ") AS T;";
+                        dataInformationPsMap.put(table, sourceDBConnection.prepareStatement(query));
+                    }
+                    dataInformationPsMap.get(table).setInt(1, targetDBSyncVersion);
+
+                    try (ResultSet resultSet = dataInformationPsMap.get(table).executeQuery()) {
+
+                        while (resultSet.next()) {
+
+                            if (resultSet.isLast()) {
+                                endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
+                            }
+                        }
+                    }
                     if (!dataExtractionPsMap.contains(table)) {
 
-                        String primaryCol = primaryColMap.get(table);
-
-                        String query = "SELECT DATAT.*, MAX(SYNCT.SYNC_ID) AS SYNC_ID FROM " + sourceTable + "_SYNC SYNCT, "
-                                + sourceTable + " DATAT WHERE SYNCT." + primaryCol + " = DATAT." + primaryCol
-                                + " AND SYNCT.SYNC_ID > ? GROUP BY " + primaryCol + " ORDER BY SYNC_ID LIMIT " + batchSize + ";";
-
+                        String query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " IN ( SELECT * FROM (SELECT DISTINCT "
+                                    + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID > ? AND SYNC_ID <= ? )AS T);";
+                        
                         dataExtractionPsMap.put(table, sourceDBConnection.prepareStatement(query));
                     }
                     dataExtractionPsMap.get(table).setInt(1, targetDBSyncVersion);
+                    dataExtractionPsMap.get(table).setInt(2, endingSyncId);
 
                     boolean updateSuccess;
 
                     try (ResultSet resultSet = dataExtractionPsMap.get(table).executeQuery()) {
 
                         long t1Time = System.currentTimeMillis();
-                        log.info(String.format("Table [%s], Elapsed time for data extraction [%s ms]",
+                        log.info(String.format("Table [%s], Elapsed time for data extraction [%s ms], Table [%s]",
                                 table, t1Time - t0Time, targetDBSyncVersion));
 
                         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
                         StringBuilder columnNames = new StringBuilder();
                         StringBuilder bindVariables = new StringBuilder();
 
-                        for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
+                        for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
 
                             if (i > 1) {
                                 columnNames.append(", ");
@@ -487,20 +506,15 @@ public class Runner {
 
                             dataUpdatePsMap.put(table, targetDBConnection.prepareStatement(query));
                         }
-                        ArrayList<String> updatingKeys = new ArrayList<>();
                         PreparedStatement dataUpdatePs = dataUpdatePsMap.get(table);
 
                         while (resultSet.next()) {
-                            updatingKeys.add(resultSet.getString(primaryColMap.get(table)));
+                            updatingKeys.add(resultSet.getString(primaryCol));
 
-                            for (int i = 1; i < resultSetMetaData.getColumnCount(); i++) {
+                            for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
                                 dataUpdatePs.setObject(i, resultSet.getObject(resultSetMetaData.getColumnName(i)));
                             }
                             dataUpdatePs.addBatch();
-
-                            if (resultSet.isLast()) {
-                                endingSyncId = resultSet.getInt("SYNC_ID");
-                            }
                         }
 
                         if (endingSyncId < targetDBSyncVersion) {
@@ -531,15 +545,10 @@ public class Runner {
                             log.debug(String.format("Table [%s], Sync'ed primary keys [%s]",
                                     table, String.join(", ", updatingKeys)));
 
-                        if (updateResults.length < Integer.parseInt(batchSize)) {
+                        if (updateResults.length > 1) {
 
-                            if (log.isDebugEnabled())
-                                log.debug(String.format("Batch was smaller than configured batch size: Batch [%s]," +
-                                        " Configured batch size [%s], table [%s]", updateResults.length, batchSize, table));
-                        } else {
                             activateWait = false;
                         }
-
                     }
 
                     if (updateSuccess) {
