@@ -456,18 +456,16 @@ public class Runner {
 
                     try (ResultSet resultSet = dataInformationPsMap.get(table).executeQuery()) {
 
-                        while (resultSet.next()) {
+                        if (resultSet.next()) {
 
-                            if (resultSet.isLast()) {
-                                endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
-                            }
+                            endingSyncId = resultSet.getInt("MAX(SYNC_ID)");
                         }
                     }
                     if (!dataExtractionPsMap.contains(table)) {
 
                         String query = "SELECT * FROM " + sourceTable + " WHERE " + primaryCol + " IN ( SELECT * FROM (SELECT DISTINCT "
-                                    + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID > ? AND SYNC_ID <= ? )AS T);";
-                        
+                                + primaryCol + " FROM " + sourceTable + "_SYNC WHERE SYNC_ID > ? AND SYNC_ID <= ? )AS T);";
+
                         dataExtractionPsMap.put(table, sourceDBConnection.prepareStatement(query));
                     }
                     dataExtractionPsMap.get(table).setInt(1, targetDBSyncVersion);
